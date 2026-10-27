@@ -1,0 +1,299 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		9468DAB7641A4DEEB9D59A3E /* Art.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB8426C532C022FFA2A5935 /* Art.swift */; };
+		5D3B07D3434203D7273FC1DE /* Coins.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DDC9F6B9734F88346677221 /* Coins.swift */; };
+		D3E311C40D4BEC9A7B92E598 /* DozerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C09FC52823C204E980A1915E /* DozerModel.swift */; };
+		EE3C96C5B071BA40493DF994 /* Game.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC16E43387E493E6714047E3 /* Game.swift */; };
+		34C5617BB7EFEBF495BADC62 /* Hud.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CE70D7C98836B4A0D8B3FF6 /* Hud.swift */; };
+		20BE32740C8FCDA41102030B /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0157BD6F0744EB74C011EE6 /* App.swift */; };
+		437C57F44D909256DA27B66A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C29F6DB06F667967DF3A6186 /* Assets.xcassets */; };
+		4A408AF0E4EB094CDA8D2266 /* dozer1.png in Resources */ = {isa = PBXBuildFile; fileRef = 3F6A0C88CCC6DBC0ECD7852A /* dozer1.png */; };
+		4F1BFFE531BF59C115BEF1A3 /* dozer2.png in Resources */ = {isa = PBXBuildFile; fileRef = 8C01A47B32934D72D298369E /* dozer2.png */; };
+		AC825050D31107CF9413C065 /* dozer3.png in Resources */ = {isa = PBXBuildFile; fileRef = 6E383E4D4145A95BD950AD2C /* dozer3.png */; };
+		7A33542B13D26A2D51DFA99D /* dozer4.png in Resources */ = {isa = PBXBuildFile; fileRef = 3FA1C3F98E8E2F86BC39AB5E /* dozer4.png */; };
+		620644171FD9B6B89A2EB9F0 /* dozer5.png in Resources */ = {isa = PBXBuildFile; fileRef = D8C4E9669A19D6F7C1BBCAD2 /* dozer5.png */; };
+		58DDA1B29F413B6221DB8355 /* dozer6.png in Resources */ = {isa = PBXBuildFile; fileRef = B20512DA1C251B61535D8213 /* dozer6.png */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		D2A57DC1D883FD21FB995169 /* GoldGrinder.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GoldGrinder.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EAB8426C532C022FFA2A5935 /* Art.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Art.swift"; path = "../Sources/GoldGrinder/Art.swift"; sourceTree = SOURCE_ROOT; };
+		7DDC9F6B9734F88346677221 /* Coins.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Coins.swift"; path = "../Sources/GoldGrinder/Coins.swift"; sourceTree = SOURCE_ROOT; };
+		C09FC52823C204E980A1915E /* DozerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "DozerModel.swift"; path = "../Sources/GoldGrinder/DozerModel.swift"; sourceTree = SOURCE_ROOT; };
+		CC16E43387E493E6714047E3 /* Game.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Game.swift"; path = "../Sources/GoldGrinder/Game.swift"; sourceTree = SOURCE_ROOT; };
+		7CE70D7C98836B4A0D8B3FF6 /* Hud.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Hud.swift"; path = "../Sources/GoldGrinder/Hud.swift"; sourceTree = SOURCE_ROOT; };
+		F0157BD6F0744EB74C011EE6 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "App.swift"; path = "GoldGrinder/App.swift"; sourceTree = SOURCE_ROOT; };
+		C29F6DB06F667967DF3A6186 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = "Assets.xcassets"; path = "GoldGrinder/Assets.xcassets"; sourceTree = SOURCE_ROOT; };
+		3F6A0C88CCC6DBC0ECD7852A /* dozer1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "dozer1.png"; path = "../Sources/GoldGrinder/Resources/dozer1.png"; sourceTree = SOURCE_ROOT; };
+		8C01A47B32934D72D298369E /* dozer2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "dozer2.png"; path = "../Sources/GoldGrinder/Resources/dozer2.png"; sourceTree = SOURCE_ROOT; };
+		6E383E4D4145A95BD950AD2C /* dozer3.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "dozer3.png"; path = "../Sources/GoldGrinder/Resources/dozer3.png"; sourceTree = SOURCE_ROOT; };
+		3FA1C3F98E8E2F86BC39AB5E /* dozer4.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "dozer4.png"; path = "../Sources/GoldGrinder/Resources/dozer4.png"; sourceTree = SOURCE_ROOT; };
+		D8C4E9669A19D6F7C1BBCAD2 /* dozer5.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "dozer5.png"; path = "../Sources/GoldGrinder/Resources/dozer5.png"; sourceTree = SOURCE_ROOT; };
+		B20512DA1C251B61535D8213 /* dozer6.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "dozer6.png"; path = "../Sources/GoldGrinder/Resources/dozer6.png"; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4F6F5CC3FCCF73F75AE9CCF4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2B731CEFC6751AAE0EC69B98 = {
+			isa = PBXGroup;
+			children = (
+				AE736DE0C412C37EFBB18551,
+				429461E971936A1CC87DA17D,
+				307A90002D1285ED8C05A9E0,
+				86024CAD1E83101D97359D73,
+			);
+			sourceTree = "<group>";
+		};
+		AE736DE0C412C37EFBB18551 /* iPhone */ = {
+			isa = PBXGroup;
+			children = (
+				F0157BD6F0744EB74C011EE6,
+				C29F6DB06F667967DF3A6186,
+			);
+			name = "iPhone";
+			sourceTree = "<group>";
+		};
+		429461E971936A1CC87DA17D /* Game (shared with Mac) */ = {
+			isa = PBXGroup;
+			children = (
+				EAB8426C532C022FFA2A5935,
+				7DDC9F6B9734F88346677221,
+				C09FC52823C204E980A1915E,
+				CC16E43387E493E6714047E3,
+				7CE70D7C98836B4A0D8B3FF6,
+			);
+			name = "Game (shared with Mac)";
+			sourceTree = "<group>";
+		};
+		307A90002D1285ED8C05A9E0 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				3F6A0C88CCC6DBC0ECD7852A,
+				8C01A47B32934D72D298369E,
+				6E383E4D4145A95BD950AD2C,
+				3FA1C3F98E8E2F86BC39AB5E,
+				D8C4E9669A19D6F7C1BBCAD2,
+				B20512DA1C251B61535D8213,
+			);
+			name = "Resources";
+			sourceTree = "<group>";
+		};
+		86024CAD1E83101D97359D73 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D2A57DC1D883FD21FB995169,
+			);
+			name = "Products";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		42AEFBAE01D2DFD981F7DA7D /* GoldGrinder */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 84BD75DECF42B745CB4F39AA;
+			buildPhases = (
+				F2AB5FB218DA8B84623F4557,
+				4F6F5CC3FCCF73F75AE9CCF4,
+				55B558C7EF820E6E00E5993B,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = GoldGrinder;
+			productName = GoldGrinder;
+			productReference = D2A57DC1D883FD21FB995169;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		46F86FAA6BBF9AC94A7E4595 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					42AEFBAE01D2DFD981F7DA7D = {
+						CreatedOnToolsVersion = 27.0;
+					};
+				};
+			};
+			buildConfigurationList = C33C66E28B3501D071CFB88C;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 2B731CEFC6751AAE0EC69B98;
+			productRefGroup = 86024CAD1E83101D97359D73;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				42AEFBAE01D2DFD981F7DA7D,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		55B558C7EF820E6E00E5993B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				437C57F44D909256DA27B66A,
+				4A408AF0E4EB094CDA8D2266,
+				4F1BFFE531BF59C115BEF1A3,
+				AC825050D31107CF9413C065,
+				7A33542B13D26A2D51DFA99D,
+				620644171FD9B6B89A2EB9F0,
+				58DDA1B29F413B6221DB8355,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F2AB5FB218DA8B84623F4557 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9468DAB7641A4DEEB9D59A3E,
+				5D3B07D3434203D7273FC1DE,
+				D3E311C40D4BEC9A7B92E598,
+				EE3C96C5B071BA40493DF994,
+				34C5617BB7EFEBF495BADC62,
+				20BE32740C8FCDA41102030B,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		6F0B85FC643AF9C218F627EA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				ENABLE_TESTABILITY = YES;
+			};
+			name = Debug;
+		};
+		1B05A9D10F61E514E88AF240 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		D87348BDE86A31AE1A1C3907 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = Z5M3K643X6;
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.0;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Gold Grinder";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.tjelum.goldgrinder;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Debug;
+		};
+		024EEA213129F6CB818D8A64 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = Z5M3K643X6;
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.0;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Gold Grinder";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.tjelum.goldgrinder;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C33C66E28B3501D071CFB88C = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6F0B85FC643AF9C218F627EA,
+				1B05A9D10F61E514E88AF240,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		84BD75DECF42B745CB4F39AA = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D87348BDE86A31AE1A1C3907,
+				024EEA213129F6CB818D8A64,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595 /* Project object */;
+}

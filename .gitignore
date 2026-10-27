@@ -1,0 +1,12 @@
+# Build output
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# macOS
+.DS_Store
+
+# Swift Package Manager
+.swiftpm/
+Package.resolved

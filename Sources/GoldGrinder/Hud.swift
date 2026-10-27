@@ -1,0 +1,128 @@
+import SpriteKit
+
+/// 2D overlay drawn on top of the 3D view. Coordinates are view points, origin bottom-left.
+final class Hud: SKScene {
+    let coinIcon = SKShapeNode(circleOfRadius: 17)
+    let coinLabel = SKLabelNode(fontNamed: hudFont)
+    let loadIcon = SKShapeNode(circleOfRadius: 11)
+    let loadLabel = SKLabelNode(fontNamed: hudFont)
+    let hint = SKLabelNode(fontNamed: hudFont)
+    let tag = SKLabelNode(fontNamed: hudFont)
+    let joyBase = SKShapeNode(circleOfRadius: 60)
+    let joyKnob = SKShapeNode(circleOfRadius: 26)
+    var topInset: CGFloat = 0      // safe area (notch / Dynamic Island) on iPhone
+    let newGameButton = SKShapeNode(rectOf: CGSize(width: 128, height: 40), cornerRadius: 14)
+    let newGameLabel = SKLabelNode(fontNamed: hudFont)
+    let winPanel = SKNode()
+    private var confirming = false
+
+    override init(size: CGSize) {
+        super.init(size: size)
+        scaleMode = .resizeFill
+        backgroundColor = .clear
+        coinIcon.fillColor = rgb(1, 0.78, 0.2); coinIcon.strokeColor = rgb(0.6, 0.38, 0.04); coinIcon.lineWidth = 4
+        loadIcon.fillColor = rgb(1, 0.72, 0.16); loadIcon.strokeColor = rgb(0.6, 0.38, 0.04); loadIcon.lineWidth = 3
+        for l in [coinLabel, loadLabel] {
+            l.horizontalAlignmentMode = .left
+            l.verticalAlignmentMode = .center
+            l.fontColor = .white
+        }
+        coinLabel.fontSize = 32
+        loadLabel.fontSize = 22
+        loadIcon.isHidden = true
+        hint.text = "Drag (or WASD) to drive"
+        hint.fontSize = 20
+        hint.fontColor = .white
+        tag.fontSize = 24
+        joyBase.fillColor = SKColor(white: 0, alpha: 0.25); joyBase.strokeColor = SKColor(white: 1, alpha: 0.5); joyBase.lineWidth = 3
+        joyKnob.fillColor = SKColor(white: 1, alpha: 0.75); joyKnob.strokeColor = .clear
+        joyBase.isHidden = true; joyKnob.isHidden = true
+        for n in [coinIcon, coinLabel, loadIcon, loadLabel, hint, tag, joyBase, joyKnob] as [SKNode] { addChild(n) }
+
+        newGameButton.fillColor = SKColor(red: 0.22, green: 0.12, blue: 0.32, alpha: 0.85)
+        newGameButton.strokeColor = SKColor(red: 1, green: 0.78, blue: 0.25, alpha: 1)
+        newGameButton.lineWidth = 2.5
+        newGameLabel.fontSize = 16; newGameLabel.fontColor = .white
+        newGameLabel.verticalAlignmentMode = .center
+        newGameLabel.text = "NEW GAME"
+        newGameButton.addChild(newGameLabel)
+        newGameButton.zPosition = 10
+        addChild(newGameButton)
+
+        let shade = SKShapeNode(rectOf: CGSize(width: 4000, height: 260))
+        shade.fillColor = SKColor(white: 0, alpha: 0.55); shade.strokeColor = .clear
+        winPanel.addChild(shade)
+        for (text, size, y, color) in [("YOU WIN!", 56.0, 40.0, SKColor(red: 1, green: 0.82, blue: 0.3, alpha: 1)),
+                                       ("You melted the golden pile", 20.0, -14.0, SKColor.white),
+                                       ("Tap NEW GAME to play again", 17.0, -50.0, SKColor(white: 0.85, alpha: 1))]
+            as [(String, CGFloat, CGFloat, SKColor)] {
+            let l = SKLabelNode(fontNamed: hudFont)
+            l.text = text; l.fontSize = size; l.fontColor = color; l.position = CGPoint(x: 0, y: y)
+            winPanel.addChild(l)
+        }
+        winPanel.zPosition = 20
+        winPanel.isHidden = true
+        addChild(winPanel)
+        layout()
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    override func didChangeSize(_ oldSize: CGSize) { layout() }
+
+    func layout() {
+        let h = size.height - topInset
+        coinIcon.position = CGPoint(x: 36, y: h - 44)
+        coinLabel.position = CGPoint(x: 62, y: h - 44)
+        loadIcon.position = CGPoint(x: 36, y: h - 86)
+        loadLabel.position = CGPoint(x: 24, y: h - 44)
+        newGameButton.position = CGPoint(x: size.width - 80, y: h - 44)
+        loadLabel.fontSize = size.width < 460 ? 16 : 22   // leave room for the NEW GAME button on phones
+        winPanel.position = CGPoint(x: size.width / 2, y: size.height * 0.62)
+        hint.position = CGPoint(x: size.width / 2, y: 60)
+        hint.setScale(1)
+        let w = hint.frame.width
+        if w > size.width - 32 { hint.setScale((size.width - 32) / w) }   // fit narrow screens
+    }
+
+    /// Returns true when a tap should start a new game (the second tap within 3 seconds).
+    func tapNewGame(_ p: CGPoint) -> Bool? {
+        guard newGameButton.frame.insetBy(dx: -8, dy: -8).contains(p) else { return nil }   // not on the button
+        if confirming {
+            confirming = false
+            newGameLabel.text = "NEW GAME"
+            newGameButton.removeAction(forKey: "confirm")
+            return true
+        }
+        confirming = true
+        newGameLabel.text = "TAP AGAIN"
+        newGameButton.run(.sequence([.wait(forDuration: 3), .run { [weak self] in
+            self?.confirming = false
+            self?.newGameLabel.text = "NEW GAME"
+        }]), withKey: "confirm")
+        return false
+    }
+
+    func showWin() {
+        winPanel.isHidden = false
+        winPanel.setScale(0.3)
+        winPanel.run(.sequence([.scale(to: 1.1, duration: 0.25), .scale(to: 1, duration: 0.12)]))
+    }
+
+    func floatText(_ s: String, at p: CGPoint, color: SKColor, size fs: CGFloat) {
+        let l = SKLabelNode(fontNamed: hudFont)
+        l.text = s; l.fontSize = fs; l.fontColor = color
+        l.position = p
+        let shadow = SKLabelNode(fontNamed: hudFont)
+        shadow.text = s; shadow.fontSize = fs; shadow.fontColor = SKColor(white: 0, alpha: 0.6)
+        shadow.position = CGPoint(x: 2, y: -3); shadow.zPosition = -1
+        l.addChild(shadow)
+        addChild(l)
+        l.setScale(0.5)
+        l.run(.sequence([
+            .group([.scale(to: 1, duration: 0.12), .moveBy(x: 0, y: 70, duration: 0.8)]),
+            .fadeOut(withDuration: 0.25),
+            .removeFromParent(),
+        ]))
+    }
+}
