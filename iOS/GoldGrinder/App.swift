@@ -26,7 +26,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 }
 
-/// SCNView that turns one-finger drags into the on-screen joystick.
+/// SCNView that passes every finger to the game (several at once: drive with one thumb, steer with the other).
 final class TouchView: SCNView {
     weak var game: Game?
 
@@ -35,14 +35,20 @@ final class TouchView: SCNView {
         let p = t.location(in: self)
         return CGPoint(x: p.x, y: bounds.height - p.y)
     }
+    private func id(_ t: UITouch) -> Int { ObjectIdentifier(t).hashValue }
+
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        if let t = touches.first { game?.joyBegin(hudPoint(t)) }
+        for t in touches { game?.touchBegan(id(t), hudPoint(t)) }
     }
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        if let t = touches.first { game?.joyMove(hudPoint(t)) }
+        for t in touches { game?.touchMoved(id(t), hudPoint(t)) }
     }
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) { game?.joyEnd() }
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { game?.joyEnd() }
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        for t in touches { game?.touchEnded(id(t)) }
+    }
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        for t in touches { game?.touchEnded(id(t)) }
+    }
 }
 
 final class GameViewController: UIViewController {
@@ -52,7 +58,7 @@ final class GameViewController: UIViewController {
         let v = TouchView(frame: CGRect(x: 0, y: 0, width: 393, height: 852), options: [
             SCNView.Option.preferredRenderingAPI.rawValue: NSNumber(value: SCNRenderingAPI.metal.rawValue)
         ])
-        v.isMultipleTouchEnabled = false
+        v.isMultipleTouchEnabled = true
         game = Game(view: v)
         v.game = game
         view = v
@@ -61,6 +67,7 @@ final class GameViewController: UIViewController {
     override func viewSafeAreaInsetsDidChange() {
         super.viewSafeAreaInsetsDidChange()
         game.hud.topInset = view.safeAreaInsets.top
+        game.hud.bottomInset = view.safeAreaInsets.bottom
         game.hud.layout()
     }
 

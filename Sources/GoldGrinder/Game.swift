@@ -35,7 +35,7 @@ func short(_ v: Double) -> String {
 struct Area {
     let rect: CGRect      // walkable floor
     let value: Float      // coin value in this mine
-    let beltStart: CGPoint, beltEnd: CGPoint   // the conveyor that feeds this mine
+    let beltStart: CGPoint, beltEnd: CGPoint   // the conveyor that feeds this mine (outside its left wall)
     let supply: Int       // coins the belt holds in total
     let rate: CGFloat     // coins per second when full (slows down as it runs dry)
 }
@@ -49,7 +49,8 @@ final class Belt {
     var left: Int
     var timer: CGFloat = 0
     var scroll: CGFloat = 0
-    var riders: [(node: SCNNode, t: CGFloat)] = []
+    var riders: [(node: SCNNode, t: CGFloat, n: Int)] = []                              // clumps of coins on the belt
+    var flyers: [(node: SCNNode, from: CGPoint, to: CGPoint, t: CGFloat, spin: CGFloat)] = []   // coins flying into the mine
     let beltMat = SCNMaterial()
     let heap = SCNNode()
     let sign = SCNNode()
@@ -62,13 +63,10 @@ final class Belt {
     }
     var dir: CGPoint { (end - start).normalized }
     var length: CGFloat { start.dist(end) }
-    var dropPoint: CGPoint { end + dir * 0.8 }
-    /// The belt is solid: is a circle at (x, y) with radius r touching it?
-    func blocks(_ x: CGFloat, _ y: CGFloat, _ r: CGFloat) -> Bool {
-        let ab = end - start
-        let t = max(0, min(1, ((x - start.x) * ab.x + (y - start.y) * ab.y) / (ab.x * ab.x + ab.y * ab.y)))
-        let c = start + ab * t
-        return hypot(x - c.x, y - c.y) < halfWidth + r
+    /// Random landing spot on the mine floor, past the wall.
+    func landingSpot() -> CGPoint {
+        let side = CGPoint(x: -dir.y, y: dir.x)
+        return end + dir * CGFloat.random(in: 2.0...4.2) + side * CGFloat.random(in: -1.5...1.5)
     }
 }
 
@@ -121,13 +119,13 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     // Each belt holds a little more than the mine's dozer + gate cost (110%), so you have to collect nearly every coin.
     let areas: [Area] = [
         Area(rect: CGRect(x: -8, y: -6, width: 16, height: 14), value: 1,
-             beltStart: CGPoint(x: -7.7, y: 6), beltEnd: CGPoint(x: -3.2, y: 6), supply: 1070, rate: 8),
+             beltStart: CGPoint(x: -14.5, y: 4.5), beltEnd: CGPoint(x: -8.4, y: 4.5), supply: 1070, rate: 8),
         Area(rect: CGRect(x: -10, y: 8, width: 20, height: 16), value: 3,
-             beltStart: CGPoint(x: -9.7, y: 12), beltEnd: CGPoint(x: -4.6, y: 12), supply: 2020, rate: 11),
+             beltStart: CGPoint(x: -16.5, y: 12), beltEnd: CGPoint(x: -10.4, y: 12), supply: 2020, rate: 11),
         Area(rect: CGRect(x: -12, y: 24, width: 24, height: 20), value: 8,
-             beltStart: CGPoint(x: -11.7, y: 27), beltEnd: CGPoint(x: -6.2, y: 27), supply: 4400, rate: 16),
+             beltStart: CGPoint(x: -18.5, y: 28), beltEnd: CGPoint(x: -12.4, y: 28), supply: 4400, rate: 16),
         Area(rect: CGRect(x: -14, y: 44, width: 28, height: 24), value: 25,
-             beltStart: CGPoint(x: -13.7, y: 60), beltEnd: CGPoint(x: -7.6, y: 60), supply: 4450, rate: 18),
+             beltStart: CGPoint(x: -20.5, y: 58), beltEnd: CGPoint(x: -14.4, y: 58), supply: 4450, rate: 18),
     ]
     let gates = [Gate(y: 8, x: 4.6), Gate(y: 24, x: -6.4), Gate(y: 44, x: 6.4)]
     let specs: [DozerSpec] = [
@@ -167,6 +165,12 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     var camScale: CGFloat = 7
     var hintShown = true
     var won = false
+    #if os(iOS)
+    let haptic = UIImpactFeedbackGenerator(style: .heavy)   // made once: starting haptics on the first melt caused a hitch
+    #endif
+    /// Things that are otherwise first drawn mid-game (molten blob, flying coins, coin piles, sparks), drawn once
+    /// under the floor at launch so iPhone builds their shaders during loading instead of at the first melt.
+    let warmUp = SCNNode()
     var reversing = false   // touch steering is backing up
     var resetRequested = false
     let startPos = CGPoint(x: 5, y: -3)
@@ -201,16 +205,16 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         tags = [
             // Each button needs a big pile: a mine's belt holds just enough for its dozer and gate (110%),
             // so you have to collect nearly every coin it delivers.
-            Tag(kind: .dozer(1), pos: CGPoint(x: 5.6, y: 1.2), area: 0, price: 450),      // mine 1 belt: 1070 coins
-            Tag(kind: .gate(0), pos: CGPoint(x: 5.6, y: 5.6), area: 0, price: 520),
-            Tag(kind: .dozer(2), pos: CGPoint(x: 7.2, y: 15), area: 1, price: 2550),      // mine 2 belt: 2020 coins
-            Tag(kind: .gate(1), pos: CGPoint(x: -6.4, y: 21.4), area: 1, price: 2970),
-            Tag(kind: .dozer(3), pos: CGPoint(x: -8.5, y: 33), area: 2, price: 9000),     // mine 3 belt: 4400 coins
-            Tag(kind: .dozer(4), pos: CGPoint(x: -8.5, y: 33), area: 2, price: 11500),
-            Tag(kind: .gate(2), pos: CGPoint(x: 6.4, y: 41.3), area: 2, price: 11500),
-            Tag(kind: .dozer(5), pos: CGPoint(x: 8.5, y: 64), area: 3, price: 50000),     // mine 4 belt: 4450 coins
+            Tag(kind: .dozer(1), pos: CGPoint(x: 2.0, y: -1.0), area: 0, price: 450),      // mine 1 belt: 1070 coins
+            Tag(kind: .gate(0), pos: CGPoint(x: 1.0, y: 3.8), area: 0, price: 520),
+            Tag(kind: .dozer(2), pos: CGPoint(x: 3.5, y: 14), area: 1, price: 2550),      // mine 2 belt: 2020 coins
+            Tag(kind: .gate(1), pos: CGPoint(x: -1.0, y: 19.5), area: 1, price: 2970),
+            Tag(kind: .dozer(3), pos: CGPoint(x: -3.0, y: 37), area: 2, price: 9000),     // mine 3 belt: 4400 coins
+            Tag(kind: .dozer(4), pos: CGPoint(x: -3.0, y: 37), area: 2, price: 11500),
+            Tag(kind: .gate(2), pos: CGPoint(x: 4.0, y: 32), area: 2, price: 11500),
+            Tag(kind: .dozer(5), pos: CGPoint(x: 4.0, y: 62), area: 3, price: 50000),     // mine 4 belt: 4450 coins
             // the big golden pile: about 2000 coins from the last mine wins the game
-            Tag(kind: .win, pos: CGPoint(x: 8.8, y: 53), area: 3, price: 51000),
+            Tag(kind: .win, pos: CGPoint(x: 2.0, y: 52), area: 3, price: 51000),
         ]
         camScale = baseZoom
         buildLighting()
@@ -226,7 +230,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         coins.render(material: Art.coinMat)
         refreshTags()
         #if os(iOS)
-        hud.hint.text = "Drag where you want to go · pile gold on the buttons"
+        hud.hint.text = "▲▼ drive · ◀ ▶ turn · pile gold on the buttons"
         #else
         hud.hint.text = "W/S drive · A/D turn · pile gold on the buttons"
         #endif
@@ -244,6 +248,29 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         view.isPlaying = true
         view.loops = true
         view.prepare(dozerModels.map { $0.node }, completionHandler: nil)
+        warmUpGraphics()
+    }
+
+    func warmUpGraphics() {
+        #if os(iOS)
+        haptic.prepare()
+        #endif
+        warmUp.position = world(pos, -2.5)        // under the floor: drawn (so compiled) but never seen
+        var parts: [SCNGeometry?] = [Art.coinGeo, tags.first?.blob.geometry]
+        parts += clumps.map { $0.geo }
+        for (i, g) in parts.enumerated() {
+            let n = SCNNode(geometry: g)
+            n.position = v3(CGFloat(i % 4) * 0.3 - 0.45, 0, CGFloat(i / 4) * 0.3)
+            n.scale = v3(0.2, 0.2, 0.2)
+            warmUp.addChildNode(n)
+        }
+        scene.rootNode.addChildNode(warmUp)
+        view?.prepare([warmUp], completionHandler: nil)
+        // sparks and dust: emit a few under the floor too
+        burst.position = world(pos, -6)
+        burst.particleSystems?.first?.particleColor = SKColor(white: 1, alpha: 0)   // invisible while warming up
+        burstTimer = 0.3
+        dust.position = world(pos, -2.5)
     }
 
     func buildCamera() {
@@ -396,7 +423,9 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         for (i, a) in areas.enumerated() {
             let ra = a.rect
             // left side faces away from the camera (tall), right side faces it (low)
-            wall(from: CGPoint(x: ra.minX, y: ra.minY), to: CGPoint(x: ra.minX, y: ra.maxY), out: CGPoint(x: -1, y: 0), low: false)
+            let beltY = a.beltStart.y
+            wall(from: CGPoint(x: ra.minX, y: ra.minY), to: CGPoint(x: ra.minX, y: ra.maxY), out: CGPoint(x: -1, y: 0), low: false,
+                 skip: { abs($0.y - beltY) < 1.0 })   // opening for the conveyor belt
             wall(from: CGPoint(x: ra.maxX, y: ra.minY), to: CGPoint(x: ra.maxX, y: ra.maxY), out: CGPoint(x: 1, y: 0), low: true)
             if i == 0 {
                 wall(from: CGPoint(x: ra.minX, y: ra.minY), to: CGPoint(x: ra.maxX, y: ra.minY), out: CGPoint(x: 0, y: -1), low: true)
@@ -476,7 +505,6 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             t.sign.geometry = sp
             t.sign.position = v3(0, 1.5 + R * 0.4, 0)
             if t.kind == .win { t.sign.scale = v3(1.6, 1.6, 1.6); t.sign.position = v3(0, 2.4 + R * 0.4, 0) }
-            t.node.addChildNode(t.sign)
             // molten gold blob, shown while the pile melts
             let bs = SCNSphere(radius: 1); bs.segmentCount = 28; bs.materials = [t.blobMat]
             t.blob.geometry = bs
@@ -547,45 +575,83 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         }
     }
 
-    /// Feed coins onto the belts; coins ride to the end and drop onto the floor.
+    /// Random little piles of coins for the belt (built once, shared).
+    lazy var clumps: [(geo: SCNGeometry?, n: Int)] = (0..<10).map { k in
+        let n = 2 + k % 7
+        let c = SCNNode()
+        for i in 0..<n {
+            let coin = SCNNode(geometry: Art.coinGeo)
+            let a = CGFloat.random(in: 0...(2 * .pi)), d = CGFloat.random(in: 0...0.2)
+            coin.position = v3(cos(a) * d, 0.02 + CGFloat(i / 3) * 0.045 + CGFloat.random(in: 0...0.02), sin(a) * d)
+            coin.eulerAngles = v3(.random(in: -0.4...0.4), .random(in: 0...6), .random(in: -0.4...0.4))
+            c.addChildNode(coin)
+        }
+        return (c.flattenedClone().geometry, n)
+    }
+
+    /// Belts carry random piles of coins out of their hoppers; at the end each pile bursts
+    /// and the coins fly over the wall into the mine.
     func updateBelts(_ dt: CGFloat) {
         let camRot = camNode.simdWorldOrientation
         for b in belts {
             b.sign.simdWorldOrientation = camRot
-            let running = areaUnlocked(b.area) && (b.left > 0 || !b.riders.isEmpty)
+            let running = areaUnlocked(b.area) && (b.left > 0 || !b.riders.isEmpty || !b.flyers.isEmpty)
             if running {
                 if b.left > 0 {
-                    // slows down as it runs dry
+                    // slows down as it runs dry; piles come at random intervals
                     let r = b.rate * (0.3 + 0.7 * CGFloat(b.left) / CGFloat(b.supply))
                     b.timer += dt * r
-                    while b.timer >= 1 && b.left > 0 {
-                        b.timer -= 1
-                        b.left -= 1
-                        let n = SCNNode(geometry: Art.coinGeo)
-                        b.riders.append((n, CGFloat.random(in: 0...0.04)))
-                        scene.rootNode.addChildNode(n)
+                    let clump = clumps[Int.random(in: 0..<clumps.count)]
+                    if b.timer >= CGFloat(clump.n) * CGFloat.random(in: 0.7...1.6) {
+                        let n = min(clump.n, b.left)
+                        b.timer = 0
+                        b.left -= n
+                        let node = SCNNode(geometry: clump.geo)
+                        node.eulerAngles = v3(0, .random(in: 0...6), 0)
+                        b.riders.append((node, 0, n))
+                        scene.rootNode.addChildNode(node)
                     }
                 }
                 let speed: CGFloat = 1.6
                 b.scroll -= speed * dt / 0.5
                 b.beltMat.diffuse.contentsTransform = texMatrix(1, b.length / 0.5, b.scroll)
-                var keep: [(node: SCNNode, t: CGFloat)] = []
+                var keep: [(node: SCNNode, t: CGFloat, n: Int)] = []
                 for var r in b.riders {
                     r.t += speed * dt / b.length
                     if r.t >= 1 {
+                        // the pile bursts: each coin flies into the mine
                         r.node.removeFromParentNode()
-                        let p = b.dropPoint + CGPoint(x: .random(in: -0.15...0.15), y: .random(in: -0.15...0.15))
-                        coins.drop(Float(p.x), Float(p.y), h: 0.35, value: areas[b.area].value)
+                        for _ in 0..<r.n {
+                            let f = SCNNode(geometry: Art.coinGeo)
+                            f.position = world(b.end, b.top + 0.05)
+                            scene.rootNode.addChildNode(f)
+                            b.flyers.append((f, b.end, b.landingSpot(), CGFloat.random(in: -0.08...0), CGFloat.random(in: 6...14)))
+                        }
                     } else {
-                        r.node.position = world(lerpP(b.start, b.end, r.t), b.top + 0.03)
+                        r.node.position = world(lerpP(b.start, b.end, r.t), b.top)
                         keep.append(r)
                     }
                 }
                 b.riders = keep
+                var flying: [(node: SCNNode, from: CGPoint, to: CGPoint, t: CGFloat, spin: CGFloat)] = []
+                for var f in b.flyers {
+                    f.t += dt / 0.75
+                    let t = max(0, f.t)
+                    if t >= 1 {
+                        f.node.removeFromParentNode()
+                        coins.drop(Float(f.to.x), Float(f.to.y), h: 0.05, value: areas[b.area].value)
+                    } else {
+                        let h = lerp(b.top + 0.05, 0.05, t) + sin(t * .pi) * 2.2   // arc over the crystals
+                        f.node.position = world(lerpP(f.from, f.to, t), h)
+                        f.node.eulerAngles = v3(t * f.spin, 0, t * f.spin * 0.6)
+                        flying.append(f)
+                    }
+                }
+                b.flyers = flying
             }
             b.heap.scale = v3(1, 0.1 + 0.7 * CGFloat(b.left) / CGFloat(b.supply), 1)
             b.heap.isHidden = b.left == 0
-            if b.left != b.drawnLeft && (b.left % 5 == 0 || b.left == 0 || b.drawnLeft < 0) {
+            if b.left != b.drawnLeft && (b.left % 5 == 0 || b.left == 0 || b.drawnLeft < 0 || abs(b.left - b.drawnLeft) >= 5) {
                 b.drawnLeft = b.left
                 b.signMat.diffuse.contents = Art.supplyImage(left: b.left, total: b.supply)
             }
@@ -643,7 +709,9 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             b.left = b.supply
             b.timer = 0
             for r in b.riders { r.node.removeFromParentNode() }
+            for f in b.flyers { f.node.removeFromParentNode() }
             b.riders = []
+            b.flyers = []
             b.drawnLeft = -1
         }
         pos = startPos; prevPos = pos; camTarget = pos
@@ -660,11 +728,39 @@ final class Game: NSObject, SCNSceneRendererDelegate {
 
     // MARK: Input
 
-    func joyBegin(_ p: CGPoint) {
+    // Touches (iPhone: several fingers) and the mouse (Mac: id 0). Drive buttons first, then the joystick.
+    var fingers: [Int: Hud.Control] = [:]
+    var btnForward = false, btnReverse = false, btnLeft = false, btnRight = false
+
+    func touchBegan(_ id: Int, _ p: CGPoint) {
         if let restart = hud.tapNewGame(p) {
             if restart { resetRequested = true }   // handled on the render thread
             return
         }
+        if let c = hud.control(at: p) { fingers[id] = c; updateButtons(); return }
+        #if os(macOS)
+        joyBegin(p)   // on iPhone, touching the floor does nothing: only the buttons drive
+        #endif
+    }
+    func touchMoved(_ id: Int, _ p: CGPoint) {
+        if fingers[id] != nil {
+            if let c = hud.control(at: p) { fingers[id] = c; updateButtons() }   // slide between buttons
+            return
+        }
+        joyMove(p)
+    }
+    func touchEnded(_ id: Int) {
+        if fingers.removeValue(forKey: id) != nil { updateButtons(); return }
+        joyEnd()
+    }
+    func updateButtons() {
+        let held = Set(fingers.values)
+        btnForward = held.contains(.forward); btnReverse = held.contains(.reverse)
+        btnLeft = held.contains(.left); btnRight = held.contains(.right)
+        hud.showPressed(held)
+    }
+
+    func joyBegin(_ p: CGPoint) {
         joyActive = true; joyOrigin = p; joyVec = .zero
         hud.joyBase.position = p; hud.joyKnob.position = p
         hud.joyBase.isHidden = false; hud.joyKnob.isHidden = false
@@ -688,7 +784,11 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         if keys.contains(1) || keys.contains(125) { s.y -= 1 }    // S / down: reverse
         if keys.contains(0) || keys.contains(123) { s.x -= 1 }    // A / left: turn left
         if keys.contains(2) || keys.contains(124) { s.x += 1 }    // D / right: turn right
-        return s
+        if btnForward { s.y += 1 }                                // on-screen buttons (iPhone)
+        if btnReverse { s.y -= 1 }
+        if btnLeft { s.x -= 1 }
+        if btnRight { s.x += 1 }
+        return CGPoint(x: max(-1, min(1, s.x)), y: max(-1, min(1, s.y)))
     }
 
     // MARK: World rules
@@ -707,7 +807,6 @@ final class Game: NSObject, SCNSceneRendererDelegate {
                 if !g.open || abs(x - g.x) > g.half - r { return true }
             }
         }
-        for b in belts where b.blocks(x, y, r) { return true }
         return false
     }
 
@@ -721,6 +820,10 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         if resetRequested { resetRequested = false; resetWorld() }
         prevPos = pos
         prevHeading = heading
+        if clock > 1.5 && warmUp.parent != nil {
+            warmUp.removeFromParentNode()
+            burst.particleSystems?.first?.particleColor = rgb(1, 0.85, 0.35)
+        }
         drive(dt)
 
         let blade = makeBlade()
@@ -772,7 +875,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             let diff = angleDiff(heading, want)
             // Dragging behind the dozer backs it up (plow stays facing away, so the pile is left alone)
             // instead of turning it around through the pile. Hysteresis stops it flipping back and forth.
-            if reversing { if abs(diff) < 1.2 { reversing = false } } else if abs(diff) > 2.1 { reversing = true }
+            if reversing { if abs(diff) < 2.3 { reversing = false } } else if abs(diff) > 2.7 { reversing = true }   // only a ~25° cone straight behind
             let aim = reversing ? want + .pi : want
             let d = angleDiff(heading, aim)
             let maxTurn = (reversing ? 2.0 : 3.4) * dt
@@ -853,7 +956,6 @@ final class Game: NSObject, SCNSceneRendererDelegate {
 
         let camRot = camNode.simdWorldOrientation
         for t in tags where tagVisible(t) || t.meltT >= 0 {
-            t.sign.simdWorldOrientation = camRot
             let fill = CGFloat(min(1, t.amount / t.price))
             t.discMat.emission.intensity = 0.4 + fill * 1.2
             if t.meltT >= 0 { animateMelt(t, dt) }
@@ -915,7 +1017,10 @@ final class Game: NSObject, SCNSceneRendererDelegate {
 
     func purchase(_ t: Tag) {
         #if os(iOS)
-        DispatchQueue.main.async { UIImpactFeedbackGenerator(style: .heavy).impactOccurred() }
+        DispatchQueue.main.async { [weak self] in
+            self?.haptic.impactOccurred()
+            self?.haptic.prepare()
+        }
         #endif
         switch t.kind {
         case .gate(let i):
@@ -968,7 +1073,12 @@ final class Game: NSObject, SCNSceneRendererDelegate {
 
         // Camera follows; zooms out as the dozer grows
         camTarget = lerpP(camTarget, pos + f * (velocity * 0.15), 1 - exp(-5 * dt))
+        #if os(iOS)
+        // aim the camera a bit lower so the dozer sits above the on-screen buttons (screen down = game (1, -1))
+        rig.position = world(camTarget + CGPoint(x: 1, y: -1) * (camScale * 0.22))
+        #else
         rig.position = world(camTarget)
+        #endif
         let wantScale = baseZoom + CGFloat(tier) * 0.8
         camScale = lerp(camScale, wantScale, 1 - exp(-3 * dt))
         camNode.camera?.orthographicScale = Double(camScale)
@@ -991,13 +1101,10 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         let full = progress >= 1
         switch t.kind {
         case .gate:
-            t.signMat.diffuse.contents = Art.signImage(icon: nil, title: "GATE", have: have, need: need, full: full)
             t.ringMat.diffuse.contents = Art.ringImage(progress: progress, color: CGColor(red: 0.8, green: 0.45, blue: 1, alpha: 1))
         case .dozer(let k):
-            t.signMat.diffuse.contents = Art.signImage(icon: Art.dozerSprites[k], title: "DOZER \(k + 1)", have: have, need: need, full: full)
             t.ringMat.diffuse.contents = Art.ringImage(progress: progress, color: CGColor(red: 1, green: 0.78, blue: 0.2, alpha: 1))
         case .win:
-            t.signMat.diffuse.contents = Art.signImage(icon: Art.trophyImage, title: "VICTORY", have: have, need: need, full: full)
             t.ringMat.diffuse.contents = Art.ringImage(progress: progress, color: CGColor(red: 1, green: 0.9, blue: 0.4, alpha: 1))
         }
     }

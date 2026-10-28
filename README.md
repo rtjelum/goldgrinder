@@ -2,7 +2,7 @@
 
 An isometric 3D bulldozer game for iPhone and Mac, written in Swift with SceneKit (rendered on Metal).
 
-Drive a little bulldozer with a zombie driver, scoop up gold coins from a conveyor belt, and push them into
+Drive a little bulldozer with a zombie driver, scoop up the gold coins a conveyor belt throws into the mine, and push them into
 heaps on glowing buttons in the floor. When a heap is big enough it melts into the button and you get a
 bigger dozer or open the gate to the next mine. Melt a huge golden pile in the last mine to win.
 
@@ -10,10 +10,11 @@ Inspired by "Idle Zombie Miner" ads.
 
 ## How to play
 
-- Each mine has a **conveyor belt** in its corner. Coins ride out of a hopper and drop into a heap at the end.
+- Each mine is fed by a **conveyor belt** outside its wall. Random little piles of coins ride out of a hopper,
+  and at the end of the belt the coins fly through a gap in the crystal wall and scatter across the mine floor.
   The belt slows down as it empties and finally runs dry. It is the only gold in the mine.
-- Push coins onto a **button** in the floor. The ring and the sign show how much is piled on it.
-  Push coins off again and the count goes down.
+- Push coins onto a **button** in the floor (orange: next dozer, purple: gate, yellow: victory).
+  The ring around it fills up as coins pile on. Push coins off again and it goes down.
 - When the pile reaches the price, it **melts** into the button:
   - **DOZER** buttons give you the next, bigger bulldozer (6 levels, wider plows, more pushing power).
   - **GATE** buttons open the next mine (4 mines, each coin is worth more: 1, 3, 8, 25).
@@ -25,8 +26,8 @@ Inspired by "Idle Zombie Miner" ads.
 
 | | Drive | Notes |
 |---|---|---|
-| iPhone | Drag where you want to go | Drag behind the dozer to back up. Drag further to go faster. |
-| Mac, mouse | Same as iPhone | |
+| iPhone | On-screen buttons: ▲ / ▼ on the left, ◀ / ▶ on the right | Use both thumbs at once. |
+| Mac, mouse | Drag where you want to go | Drag behind the dozer to back up. |
 | Mac, keyboard | W / S forward and reverse, A / D turn | Arrow keys work too. |
 
 ## Building
@@ -77,6 +78,9 @@ iOS/
 - **Coins:** thousands of coins with simple 2D physics on the ground plane. Coins sleep until touched,
   climb on top of each other when squeezed (so heaps form), and fall when nothing is under them.
   They are drawn in 3x3 m chunks, and a chunk's mesh is only rebuilt when one of its coins moves.
+- **Buttons** are placed in open floor away from the walls so you can push gold onto them from any side.
+- **iPhone start-up:** the coins, molten blob and sparks are drawn once under the floor at launch, so the
+  iPhone prepares their shaders while loading instead of stalling at the first melt.
 - **The plow** is a polyline that is both drawn and used as the collision wall, so coins collect inside it
   and turn with the dozer. The whole dozer outline collides with walls, and it backs off a little when a turn
   would swing the plow into a wall.

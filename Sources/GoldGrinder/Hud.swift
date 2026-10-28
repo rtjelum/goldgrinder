@@ -11,6 +11,9 @@ final class Hud: SKScene {
     let joyBase = SKShapeNode(circleOfRadius: 60)
     let joyKnob = SKShapeNode(circleOfRadius: 26)
     var topInset: CGFloat = 0      // safe area (notch / Dynamic Island) on iPhone
+    var bottomInset: CGFloat = 0   // safe area (home indicator) on iPhone
+    enum Control: Int, CaseIterable { case forward, reverse, left, right }
+    var controls: [Control: SKShapeNode] = [:]
     let newGameButton = SKShapeNode(rectOf: CGSize(width: 128, height: 40), cornerRadius: 14)
     let newGameLabel = SKLabelNode(fontNamed: hudFont)
     let winPanel = SKNode()
@@ -60,6 +63,21 @@ final class Hud: SKScene {
             l.text = text; l.fontSize = size; l.fontColor = color; l.position = CGPoint(x: 0, y: y)
             winPanel.addChild(l)
         }
+        #if os(iOS)
+        // on-screen drive buttons: forward / reverse on the left, turn left / right on the right
+        for c in Control.allCases {
+            let b = SKShapeNode(circleOfRadius: 44)
+            b.fillColor = SKColor(red: 0.22, green: 0.12, blue: 0.32, alpha: 0.6)
+            b.strokeColor = SKColor(red: 1, green: 0.78, blue: 0.25, alpha: 0.9)
+            b.lineWidth = 3
+            b.zPosition = 10
+            let arrow = SKShapeNode(path: Hud.arrowPath(c))
+            arrow.fillColor = SKColor(white: 1, alpha: 0.95); arrow.strokeColor = .clear
+            b.addChild(arrow)
+            addChild(b)
+            controls[c] = b
+        }
+        #endif
         winPanel.zPosition = 20
         winPanel.isHidden = true
         addChild(winPanel)
@@ -79,7 +97,12 @@ final class Hud: SKScene {
         newGameButton.position = CGPoint(x: size.width - 80, y: h - 44)
         loadLabel.fontSize = size.width < 460 ? 16 : 22   // leave room for the NEW GAME button on phones
         winPanel.position = CGPoint(x: size.width / 2, y: size.height * 0.62)
-        hint.position = CGPoint(x: size.width / 2, y: 60)
+        let by = bottomInset + 70
+        controls[.forward]?.position = CGPoint(x: 72, y: by + 104)
+        controls[.reverse]?.position = CGPoint(x: 72, y: by)
+        controls[.left]?.position = CGPoint(x: size.width - 176, y: by + 30)
+        controls[.right]?.position = CGPoint(x: size.width - 72, y: by + 30)
+        hint.position = CGPoint(x: size.width / 2, y: controls.isEmpty ? 60 : by + 190)
         hint.setScale(1)
         let w = hint.frame.width
         if w > size.width - 32 { hint.setScale((size.width - 32) / w) }   // fit narrow screens
@@ -107,6 +130,27 @@ final class Hud: SKScene {
         winPanel.isHidden = false
         winPanel.setScale(0.3)
         winPanel.run(.sequence([.scale(to: 1.1, duration: 0.25), .scale(to: 1, duration: 0.12)]))
+    }
+
+    static func arrowPath(_ c: Control) -> CGPath {
+        let p = CGMutablePath()
+        p.move(to: CGPoint(x: 0, y: 20)); p.addLine(to: CGPoint(x: 18, y: -12)); p.addLine(to: CGPoint(x: -18, y: -12)); p.closeSubpath()
+        let angle: CGFloat = [Control.forward: 0, .reverse: .pi, .left: .pi / 2, .right: -.pi / 2][c]!
+        var t = CGAffineTransform(rotationAngle: angle)
+        return p.copy(using: &t)!
+    }
+
+    /// Which drive button (if any) is at this point.
+    func control(at p: CGPoint) -> Control? {
+        controls.first { $0.value.position.dist(p) < 58 }?.key
+    }
+
+    func showPressed(_ held: Set<Control>) {
+        for (c, b) in controls {
+            b.fillColor = held.contains(c) ? SKColor(red: 1, green: 0.7, blue: 0.15, alpha: 0.85)
+                                           : SKColor(red: 0.22, green: 0.12, blue: 0.32, alpha: 0.6)
+            b.setScale(held.contains(c) ? 0.92 : 1)
+        }
     }
 
     func floatText(_ s: String, at p: CGPoint, color: SKColor, size fs: CGFloat) {

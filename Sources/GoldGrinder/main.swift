@@ -6,9 +6,9 @@ final class GameView: SCNView {
     var game: Game!
     override var acceptsFirstResponder: Bool { true }
     func point(_ e: NSEvent) -> CGPoint { convert(e.locationInWindow, from: nil) }
-    override func mouseDown(with e: NSEvent) { game.joyBegin(point(e)) }
-    override func mouseDragged(with e: NSEvent) { game.joyMove(point(e)) }
-    override func mouseUp(with e: NSEvent) { game.joyEnd() }
+    override func mouseDown(with e: NSEvent) { game.touchBegan(0, point(e)) }
+    override func mouseDragged(with e: NSEvent) { game.touchMoved(0, point(e)) }
+    override func mouseUp(with e: NSEvent) { game.touchEnded(0) }
     override func keyDown(with e: NSEvent) { game.keys.insert(e.keyCode) }
     override func keyUp(with e: NSEvent) { game.keys.remove(e.keyCode) }
 }
