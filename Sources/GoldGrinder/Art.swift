@@ -476,6 +476,20 @@ enum Art {
         return ctx.makeImage()!
     }
 
+    /// A word painted on a button: white letters with a dark outline, on a clear background.
+    static func buttonLabel(_ word: String) -> CGImage {
+        let w = 512, h = 160
+        let ctx = context(w, h)
+        let c = CGPoint(x: CGFloat(w) / 2, y: CGFloat(h) / 2)
+        let dark = CGColor(red: 0.12, green: 0.05, blue: 0.08, alpha: 0.9)
+        for k in 0..<12 {   // outline: the word drawn dark all around
+            let a = CGFloat(k) / 12 * 2 * .pi
+            text(ctx, word, size: 96, color: dark, at: CGPoint(x: c.x + cos(a) * 7, y: c.y + sin(a) * 7), maxWidth: CGFloat(w) - 40)
+        }
+        text(ctx, word, size: 96, color: CGColor(red: 1, green: 0.98, blue: 0.92, alpha: 1), at: c, maxWidth: CGFloat(w) - 40)
+        return ctx.makeImage()!
+    }
+
     /// Flat ring around a button that fills up clockwise as coins pile on.
     /// `inner`: where the ring starts, as a fraction of the image's half-width (it ends near the edge).
     static func ringImage(progress: CGFloat, color: CGColor, inner: CGFloat = 0.78) -> CGImage {

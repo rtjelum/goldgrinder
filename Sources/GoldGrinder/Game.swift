@@ -555,6 +555,32 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             t.disc.geometry = disc
             t.disc.position = v3(0, discY, 0)
             t.node.addChildNode(t.disc)
+            // the button's name on its plate, turned to read across the screen (screen right = game (1, 1))
+            let word: String
+            switch t.kind {
+            case .dozer: word = "UPGRADE"
+            case .gate: word = "GATE"
+            case .win: word = "VICTORY"
+            }
+            let labelMat = SCNMaterial()
+            labelMat.lightingModel = .constant
+            labelMat.diffuse.contents = Art.buttonLabel(word)
+            labelMat.writesToDepthBuffer = false
+            // taller than the image, so the letters look right when seen at the camera's slant
+            let lp = SCNPlane(width: R * 1.5, height: R * 1.5 * 160 / 512 * 1.7)
+            lp.materials = [labelMat]
+            let ln = SCNNode(geometry: lp)
+            ln.eulerAngles = v3(-.pi / 2, 0, 0)
+            ln.renderingOrder = 5
+            let turn = SCNNode()
+            turn.eulerAngles = v3(0, .pi / 4, 0)
+            turn.position = v3(0, discY + 0.015, 0)
+            turn.addChildNode(ln)
+            t.node.addChildNode(turn)
+            // slowly flash
+            let down = SCNAction.fadeOpacity(to: 0.25, duration: 0.9); down.timingMode = .easeInEaseOut
+            let up = SCNAction.fadeOpacity(to: 1, duration: 0.9); up.timingMode = .easeInEaseOut
+            ln.runAction(.repeatForever(.sequence([down, up])))
             // progress ring on the floor around the well's lip
             let ring = SCNPlane(width: (R + 0.75) * 2, height: (R + 0.75) * 2)
             t.ringMat.lightingModel = .constant
