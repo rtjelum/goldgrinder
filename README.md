@@ -70,7 +70,7 @@ iOS/
   GoldGrinder.xcodeproj       iPhone app project (uses the shared sources above)
   GoldGrinder/App.swift       iPhone app, scene and touch input
   GoldGrinder/Assets.xcassets App icon
-*.png, *.jpeg                 Reference art the dozers, gold and buttons were based on
+docs/screenshot.png           Screenshot for this README
 ```
 
 ## How it works

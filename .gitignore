@@ -10,3 +10,9 @@ xcuserdata/
 # Swift Package Manager
 .swiftpm/
 Package.resolved
+
+# Reference art (kept locally, not in the repo)
+/buldozer_upgrade.jpeg
+/dozer.png
+/gold_upgrade.jpeg
+/level1_dozer.png
