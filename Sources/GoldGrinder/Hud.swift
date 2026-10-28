@@ -66,7 +66,7 @@ final class Hud: SKScene {
         winPanel.addChild(shade)
         for (text, size, y, color) in [("YOU WIN!", 56.0, 40.0, SKColor(red: 1, green: 0.82, blue: 0.3, alpha: 1)),
                                        ("You melted the golden pile", 20.0, -14.0, SKColor.white),
-                                       ("Next round: back up to the quarry", 17.0, -50.0, SKColor(white: 0.85, alpha: 1))]
+                                       ("Next: a harder round, back up in the quarry", 17.0, -50.0, SKColor(white: 0.85, alpha: 1))]
             as [(String, CGFloat, CGFloat, SKColor)] {
             let l = SKLabelNode(fontNamed: hudFont)
             l.text = text; l.fontSize = size; l.fontColor = color; l.position = CGPoint(x: 0, y: y)
@@ -190,6 +190,35 @@ final class Hud: SKScene {
     func fadeThrough() {
         fade.removeAllActions()
         fade.run(.sequence([.fadeAlpha(to: 1, duration: 0.5), .wait(forDuration: 0.4), .fadeAlpha(to: 0, duration: 0.7)]))
+    }
+
+    /// Big "ROUND n" banner when a new, harder round starts.
+    func roundBanner(_ n: Int) {
+        let banner = SKNode()
+        banner.position = CGPoint(x: size.width / 2, y: size.height * 0.6)
+        banner.zPosition = 30
+        for (text, fs, y, color) in [("ROUND \(n)", 60.0, 18.0, SKColor(red: 1, green: 0.82, blue: 0.3, alpha: 1)),
+                                     ("HARDER!", 28.0, -30.0, SKColor.white)] as [(String, CGFloat, CGFloat, SKColor)] {
+            let shadow = SKLabelNode(fontNamed: hudFont)
+            shadow.text = text; shadow.fontSize = fs; shadow.fontColor = SKColor(white: 0, alpha: 0.6)
+            shadow.position = CGPoint(x: 3, y: y - 4)
+            banner.addChild(shadow)
+            let l = SKLabelNode(fontNamed: hudFont)
+            l.text = text; l.fontSize = fs; l.fontColor = color
+            l.position = CGPoint(x: 0, y: y)
+            banner.addChild(l)
+        }
+        addChild(banner)
+        banner.setScale(0.3)
+        banner.alpha = 0
+        banner.run(.sequence([
+            .wait(forDuration: 0.6),
+            .group([.fadeIn(withDuration: 0.25), .scale(to: 1.1, duration: 0.25)]),
+            .scale(to: 1, duration: 0.12),
+            .wait(forDuration: 1.8),
+            .fadeOut(withDuration: 0.5),
+            .removeFromParent(),
+        ]))
     }
 
     func showWin() {

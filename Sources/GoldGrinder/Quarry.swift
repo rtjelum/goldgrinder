@@ -84,10 +84,10 @@ final class Quarry {
     ]
     /// The biggest quarry dozer (tier) each round allows.
     static func maxTier(round: Int) -> Int { round == 1 ? 2 : 3 }
-    /// From round 3 every room gets extra big blocks, and the gate needs their gold too.
+    /// From round 2 every room gets extra big blocks (one more each round), and the gate needs their gold too.
     static func plan(_ room: Int, round: Int) -> (blocks: [Int], upgradeAt: Int?, need: Int) {
         let base = round == 1 ? firstRound[room] : laterRounds[room]
-        let extra = min(4, max(0, round - 2)), big = base.blocks.max()!
+        let extra = min(4, max(0, round - 1)), big = base.blocks.max()!
         return (base.blocks + Array(repeating: big, count: extra), base.upgradeAt, base.need + extra * (big + 1))
     }
     var nugget: [SCNGeometry] = []               // a few rough-cut shapes, shared by all blocks

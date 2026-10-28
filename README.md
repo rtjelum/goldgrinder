@@ -38,8 +38,10 @@ The game starts in a desert quarry above the mines: four red sandstone rooms lai
 - When the pile reaches the price, it **melts** into the button:
   - **DOZER** buttons give you the next, bigger bulldozer (6 levels, wider plows, more pushing power).
   - **GATE** buttons open the next mine (4 mines, each coin is worth more: 1, 3, 8, 25).
-  - The **VICTORY** button in mine 4 needs 400 coins. Fill it to win, and the next round starts back up
-    in the quarry with more gold blocks to crush.
+  - The yellow button in mine 4 needs 400 coins. In round 1 it says **NEXT ROUND** and takes you straight on
+    to round 2; from round 2 it says **VICTORY** and shows the win screen before the next round starts back up
+    in the quarry. Each round is harder: more gold blocks per quarry room, and the mine buttons need
+    25% more coins per round (up to +50%), with fuller belts to match.
 - Buttons need 100 coins each in mine 1, 200 in mine 2, 300 in mine 3 and 400 in mine 4.
 - Each belt holds just a little more gold than its mine's dozer and gate cost together, so collect every coin.
 - The game does not save. **NEW GAME** (top right, tap twice) starts over, back up in the quarry.

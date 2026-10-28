@@ -39,7 +39,8 @@ struct Area {
 final class Belt {
     let area: Int
     let start: CGPoint, end: CGPoint
-    let supply: Int
+    let baseSupply: Int
+    var supply: Int
     let rate: CGFloat
     var left: Int
     var timer: CGFloat = 0
@@ -54,7 +55,7 @@ final class Belt {
     let halfWidth: CGFloat = 0.55
     let top: CGFloat = 0.55
     init(area: Int, a: Area) {
-        self.area = area; start = a.beltStart; end = a.beltEnd; supply = a.supply; rate = a.rate; left = a.supply
+        self.area = area; start = a.beltStart; end = a.beltEnd; baseSupply = a.supply; supply = a.supply; rate = a.rate; left = a.supply
     }
     var dir: CGPoint { (end - start).normalized }
     var length: CGFloat { start.dist(end) }
@@ -85,7 +86,8 @@ final class Tag {
     let kind: TagKind
     let pos: CGPoint
     let area: Int
-    let price: Double            // total coin value needed
+    let basePrice: Double        // total coin value needed in round 1
+    var price: Double            // ... and this round
     var radius: CGFloat = 1
     var amount: Double = 0       // value of the coins sitting on it right now
     var drawnKey = ""
@@ -97,10 +99,11 @@ final class Tag {
     let ringMat = SCNMaterial()
     let sign = SCNNode()
     let signMat = SCNMaterial()
+    let labelMat = SCNMaterial()   // the word on the button's plate
     let blob = SCNNode()
     let blobMat = Art.pbr(rgb(1, 0.62, 0.12), metal: 0.7, rough: 0.2, emit: rgb(1.0, 0.45, 0.05))
     init(kind: TagKind, pos: CGPoint, area: Int, price: Double) {
-        self.kind = kind; self.pos = pos; self.area = area; self.price = price
+        self.kind = kind; self.pos = pos; self.area = area; self.price = price; basePrice = price
     }
     func contains(_ x: Float, _ y: Float) -> Bool {
         let dx = CGFloat(x) - pos.x, dy = CGFloat(y) - pos.y
@@ -556,15 +559,9 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             t.disc.position = v3(0, discY, 0)
             t.node.addChildNode(t.disc)
             // the button's name on its plate, turned to read across the screen (screen right = game (1, 1))
-            let word: String
-            switch t.kind {
-            case .dozer: word = "UPGRADE"
-            case .gate: word = "GATE"
-            case .win: word = "VICTORY"
-            }
-            let labelMat = SCNMaterial()
+            let labelMat = t.labelMat
             labelMat.lightingModel = .constant
-            labelMat.diffuse.contents = Art.buttonLabel(word)
+            labelMat.diffuse.contents = Art.buttonLabel(buttonWord(t))
             labelMat.writesToDepthBuffer = false
             // taller than the image, so the letters look right when seen at the camera's slant
             let lp = SCNPlane(width: R * 1.5, height: R * 1.5 * 160 / 512 * 1.7)
@@ -791,6 +788,14 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     func resetWorld(round newRound: Int = 1) {
         round = newRound
         nextRoundT = -1
+        // harder each round: the mine buttons need 25% more coins per round (up to +50%, so the piles still fit
+        // the buttons), and the belts carry that much more
+        let m = min(1.5, 1 + 0.25 * Double(round - 1))
+        for t in tags {
+            t.price = (t.basePrice * m).rounded()
+            if t.kind == .win { t.labelMat.diffuse.contents = Art.buttonLabel(buttonWord(t)) }
+        }
+        for b in belts { b.supply = Int((Double(b.baseSupply) * m).rounded()) }
         tier = 0
         won = false
         for g in gates {
@@ -827,6 +832,10 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         hud.hint.removeAllActions()
         hud.hint.alpha = 1
         hud.winPanel.isHidden = true
+        if round > 1 {
+            let r = round
+            DispatchQueue.main.async { [weak self] in self?.hud.roundBanner(r) }
+        }
     }
 
     // MARK: Input
@@ -974,6 +983,15 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         }
     }
 
+    /// What a button is called. In round 1 the last button leads on to round 2 rather than winning.
+    func buttonWord(_ t: Tag) -> String {
+        switch t.kind {
+        case .dozer: return "UPGRADE"
+        case .gate: return "GATE"
+        case .win: return round == 1 ? "NEXT ROUND" : "VICTORY"
+        }
+    }
+
     /// The two counters at the top: coins on the nearest button and coins it needs.
     func updateCounters() {
         let near = tags.filter { tagVisible($0) }.min { $0.pos.dist(pos) < $1.pos.dist(pos) }
@@ -985,7 +1003,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         switch t.kind {
         case .dozer: name = "NEXT DOZER"
         case .gate: name = "GATE"
-        case .win: name = "VICTORY"
+        case .win: name = buttonWord(t)
         }
         hud.showCounters((name, have, need))
     }
@@ -1236,8 +1254,14 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             floatText("BIGGER DOZER!", at: pos, h: 2.5, color: .white, size: 36)
         case .win:
             won = true
-            nextRoundT = 0
-            DispatchQueue.main.async { [weak self] in self?.hud.showWin() }
+            if round == 1 {
+                // not the end yet: straight on to round 2 (no win screen)
+                nextRoundT = 1.5
+                floatText("NEXT ROUND!", at: pos, h: 2.5, color: rgb(1, 0.85, 0.35), size: 40)
+            } else {
+                nextRoundT = 0
+                DispatchQueue.main.async { [weak self] in self?.hud.showWin() }
+            }
         }
         burst.position = world(t.pos, 0.3)
         burstTimer = 0.2
