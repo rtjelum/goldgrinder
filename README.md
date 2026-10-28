@@ -8,6 +8,8 @@ bigger dozer or open the gate to the next mine. Melt a huge golden pile in the l
 
 Inspired by "Idle Zombie Miner" ads.
 
+<img src="docs/screenshot.png" alt="Gold Grinder on iPhone" width="320">
+
 ## How to play
 
 - Each mine is fed by a **conveyor belt** outside its wall. Random little piles of coins ride out of a hopper,
