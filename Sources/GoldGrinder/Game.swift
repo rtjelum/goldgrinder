@@ -24,11 +24,6 @@ func angleDiff(_ a: CGFloat, _ b: CGFloat) -> CGFloat {
     return d
 }
 func world(_ p: CGPoint, _ h: CGFloat = 0) -> SCNVector3 { v3(p.x, h, -p.y) }
-func short(_ v: Double) -> String {
-    if v >= 1_000_000 { return String(format: "%.1fM", v / 1_000_000) }
-    if v >= 10_000 { return String(format: "%.1fK", v / 1_000) }
-    return "\(Int(v))"
-}
 
 // MARK: - Level data
 
@@ -119,13 +114,13 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     // Each belt holds a little more than the mine's dozer + gate cost (110%), so you have to collect nearly every coin.
     let areas: [Area] = [
         Area(rect: CGRect(x: -8, y: -6, width: 16, height: 14), value: 1,
-             beltStart: CGPoint(x: -14.5, y: 4.5), beltEnd: CGPoint(x: -8.4, y: 4.5), supply: 1070, rate: 8),
+             beltStart: CGPoint(x: -14.5, y: 4.5), beltEnd: CGPoint(x: -8.4, y: 4.5), supply: 220, rate: 8),
         Area(rect: CGRect(x: -10, y: 8, width: 20, height: 16), value: 3,
-             beltStart: CGPoint(x: -16.5, y: 12), beltEnd: CGPoint(x: -10.4, y: 12), supply: 2020, rate: 11),
+             beltStart: CGPoint(x: -16.5, y: 12), beltEnd: CGPoint(x: -10.4, y: 12), supply: 440, rate: 11),
         Area(rect: CGRect(x: -12, y: 24, width: 24, height: 20), value: 8,
-             beltStart: CGPoint(x: -18.5, y: 28), beltEnd: CGPoint(x: -12.4, y: 28), supply: 4400, rate: 16),
+             beltStart: CGPoint(x: -18.5, y: 28), beltEnd: CGPoint(x: -12.4, y: 28), supply: 990, rate: 16),
         Area(rect: CGRect(x: -14, y: 44, width: 28, height: 24), value: 25,
-             beltStart: CGPoint(x: -20.5, y: 58), beltEnd: CGPoint(x: -14.4, y: 58), supply: 4450, rate: 18),
+             beltStart: CGPoint(x: -20.5, y: 58), beltEnd: CGPoint(x: -14.4, y: 58), supply: 880, rate: 18),
     ]
     let gates = [Gate(y: 8, x: 4.6), Gate(y: 24, x: -6.4), Gate(y: 44, x: 6.4)]
     let specs: [DozerSpec] = [
@@ -147,13 +142,12 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     let rig = SCNNode()
     let camNode = SCNNode()
     var dozer: DozerModel.Built!
-    let dust = SCNNode()
     let smoke = SCNNode()
     let burst = SCNNode()
 
     // State
     var tier = 0
-    var shownTier = -1
+    var shownDozer = ""
     var pos = CGPoint(x: 5, y: -3)
     var heading: CGFloat = .pi / 2
     var velocity: CGFloat = 0
@@ -176,7 +170,8 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     let startPos = CGPoint(x: 5, y: -3)
     var pop: CGFloat = 0
     var tagRedrawTimer: CGFloat = 0
-    var dozerModels: [DozerModel.Built] = []
+    var dozerModels: [DozerModel.Built] = []        // mine dozers: curved claw plows
+    var quarryDozers: [DozerModel.Built] = []       // quarry dozers: flat blades
     var prevPos = CGPoint(x: 5, y: -3)
     var prevHeading: CGFloat = .pi / 2
 
@@ -186,6 +181,13 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     var joyActive = false
     var keys = Set<UInt16>()
 
+    let quarry = Quarry()             // the desert stage played before the mines
+    var round = 1                     // after winning, the game starts over in the quarry with more blocks
+    var nextRoundT: CGFloat = -1      // >= 0 while waiting to head back up after a win
+    var stage = Stage.quarry
+    let ambient = SCNLight()
+    var twinkles: [SCNNode] = []      // pool of glints that pop on random coins
+    var twinkleTimer: CGFloat = 0
     let wallBand: CGFloat = 0.35   // half-thickness of the crystal walls between mines
     var spec: DozerSpec { specs[tier] }
     /// Zoom that shows about 9 units across, so narrow phones see as much as the Mac window.
@@ -205,36 +207,34 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         tags = [
             // Each button needs a big pile: a mine's belt holds just enough for its dozer and gate (110%),
             // so you have to collect nearly every coin it delivers.
-            Tag(kind: .dozer(1), pos: CGPoint(x: 2.0, y: -1.0), area: 0, price: 450),      // mine 1 belt: 1070 coins
-            Tag(kind: .gate(0), pos: CGPoint(x: 1.0, y: 3.8), area: 0, price: 520),
-            Tag(kind: .dozer(2), pos: CGPoint(x: 3.5, y: 14), area: 1, price: 2550),      // mine 2 belt: 2020 coins
-            Tag(kind: .gate(1), pos: CGPoint(x: -1.0, y: 19.5), area: 1, price: 2970),
-            Tag(kind: .dozer(3), pos: CGPoint(x: -3.0, y: 37), area: 2, price: 9000),     // mine 3 belt: 4400 coins
-            Tag(kind: .dozer(4), pos: CGPoint(x: -3.0, y: 37), area: 2, price: 11500),
-            Tag(kind: .gate(2), pos: CGPoint(x: 4.0, y: 32), area: 2, price: 11500),
-            Tag(kind: .dozer(5), pos: CGPoint(x: 4.0, y: 62), area: 3, price: 50000),     // mine 4 belt: 4450 coins
-            // the big golden pile: about 2000 coins from the last mine wins the game
-            Tag(kind: .win, pos: CGPoint(x: 2.0, y: 52), area: 3, price: 51000),
+            Tag(kind: .dozer(1), pos: CGPoint(x: 2.0, y: -1.0), area: 0, price: 100),      // mine 1: 100 coins each, belt: 220 coins
+            Tag(kind: .gate(0), pos: CGPoint(x: 1.0, y: 3.8), area: 0, price: 100),
+            Tag(kind: .dozer(2), pos: CGPoint(x: 3.5, y: 14), area: 1, price: 600),       // mine 2: 200 coins each, belt: 440 coins
+            Tag(kind: .gate(1), pos: CGPoint(x: -1.0, y: 19.5), area: 1, price: 600),
+            Tag(kind: .dozer(3), pos: CGPoint(x: -3.0, y: 37), area: 2, price: 2400),     // mine 3: 300 coins each, belt: 990 coins
+            Tag(kind: .dozer(4), pos: CGPoint(x: -3.0, y: 37), area: 2, price: 2400),
+            Tag(kind: .gate(2), pos: CGPoint(x: 4.0, y: 32), area: 2, price: 2400),
+            Tag(kind: .dozer(5), pos: CGPoint(x: 4.0, y: 62), area: 3, price: 10000),     // mine 4: 400 coins each, belt: 880 coins
+            // the big golden pile: 400 coins from the last mine wins the game
+            Tag(kind: .win, pos: CGPoint(x: 2.0, y: 52), area: 3, price: 10000),
         ]
         camScale = baseZoom
         buildLighting()
+        sizeTags()
         buildFloor()
-        buildWalls()
-        buildGates()
+        buildMineWalls()
+        buildGates(gates)
         buildTags()
         buildBelts()
         buildEffects()
+        buildQuarry()
+        pos = quarry.start; prevPos = pos; camTarget = pos   // the game starts up in the quarry
         applyTier()
         buildCamera()
         scene.rootNode.addChildNode(coins.root)
         coins.render(material: Art.coinMat)
         refreshTags()
-        #if os(iOS)
-        hud.hint.text = "▲▼ drive · ◀ ▶ turn · pile gold on the buttons"
-        #else
-        hud.hint.text = "W/S drive · A/D turn · pile gold on the buttons"
-        #endif
-        hud.layout()
+        applyStageLook()
         hud.coinIcon.isHidden = true
         hud.coinLabel.isHidden = true
 
@@ -247,7 +247,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         view.preferredFramesPerSecond = 60
         view.isPlaying = true
         view.loops = true
-        view.prepare(dozerModels.map { $0.node }, completionHandler: nil)
+        view.prepare((dozerModels + quarryDozers).map { $0.node }, completionHandler: nil)
         warmUpGraphics()
     }
 
@@ -266,11 +266,10 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         }
         scene.rootNode.addChildNode(warmUp)
         view?.prepare([warmUp], completionHandler: nil)
-        // sparks and dust: emit a few under the floor too
+        // sparks: emit a few under the floor too
         burst.position = world(pos, -6)
         burst.particleSystems?.first?.particleColor = SKColor(white: 1, alpha: 0)   // invisible while warming up
         burstTimer = 0.3
-        dust.position = world(pos, -2.5)
     }
 
     func buildCamera() {
@@ -315,12 +314,11 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         sunNode.eulerAngles = v3(-1.0, 0.6, 0)
         scene.rootNode.addChildNode(sunNode)
 
-        let amb = SCNLight()
-        amb.type = .ambient
-        amb.intensity = 320
-        amb.color = rgb(0.7, 0.6, 0.95)
+        ambient.type = .ambient
+        ambient.intensity = 320
+        ambient.color = rgb(0.7, 0.6, 0.95)
         let ambNode = SCNNode()
-        ambNode.light = amb
+        ambNode.light = ambient
         scene.rootNode.addChildNode(ambNode)
     }
 
@@ -336,41 +334,102 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         return m
     }
 
+    /// One well per button spot (buttons sharing a spot share a well): (centre, radius).
+    var wells: [(p: CGPoint, r: CGFloat)] {
+        var out: [(p: CGPoint, r: CGFloat)] = []
+        for t in tags where !out.contains(where: { $0.p == t.pos }) { out.append((t.pos, t.radius)) }
+        return out
+    }
+    let wellDepth: CGFloat = 0.32
+
+    /// A flat floor piece in game coordinates with round holes cut out for the wells.
+    func floorShape(_ r: CGRect, holes: [(p: CGPoint, r: CGFloat)], mat: SCNMaterial) -> SCNNode {
+        #if os(macOS)
+        let path = NSBezierPath(rect: r)
+        for h in holes { path.appendOval(in: CGRect(x: h.p.x - h.r, y: h.p.y - h.r, width: 2 * h.r, height: 2 * h.r)) }
+        path.windingRule = .evenOdd
+        #else
+        let path = UIBezierPath(rect: r)
+        for h in holes { path.append(UIBezierPath(ovalIn: CGRect(x: h.p.x - h.r, y: h.p.y - h.r, width: 2 * h.r, height: 2 * h.r))) }
+        path.usesEvenOddFillRule = true
+        #endif
+        path.flatness = 0.01
+        let shape = SCNShape(path: path, extrusionDepth: 0)
+        shape.materials = [mat]
+        let n = SCNNode(geometry: shape)
+        n.eulerAngles = v3(-.pi / 2, 0, 0)   // shape (x, y) lands on world (x, 0, -y), same as game coords
+        return n
+    }
+
     func buildFloor() {
-        let outer = SCNPlane(width: 120, height: 140)
-        outer.materials = [floorMat((0.16, 0.11, 0.2), seed: 1, repeats: 24)]
-        let on = SCNNode(geometry: outer)
-        on.eulerAngles = v3(-.pi / 2, 0, 0)
-        on.position = v3(0, -0.03, -30)
+        let holes = wells
+        let on = floorShape(CGRect(x: -60, y: -40, width: 120, height: 140), holes: holes,
+                            mat: floorMat((0.16, 0.11, 0.2), seed: 1, repeats: 24))
+        on.position = v3(0, -0.03, 0)
         scene.rootNode.addChildNode(on)
-        let mat = floorMat((0.4, 0.35, 0.44), seed: 2, repeats: 4)
+        // mine floors: cobblestones, one texture tile (6 x 6 stones) per 4 units
+        let cobble = Art.cobbleImage(seed: 2)
         for a in areas {
-            let p = SCNPlane(width: a.rect.width, height: a.rect.height)
-            p.materials = [mat]
-            let n = SCNNode(geometry: p)
-            n.eulerAngles = v3(-.pi / 2, 0, 0)
-            n.position = v3(a.rect.midX, 0, -a.rect.midY)
+            let inside = holes.filter { a.rect.contains($0.p) }
+            let mat = Art.pbr(cobble, rough: 0.85)
+            mat.diffuse.wrapS = .repeat; mat.diffuse.wrapT = .repeat
+            mat.diffuse.mipFilter = .linear
+            #if os(macOS)
+            mat.diffuse.contentsTransform = SCNMatrix4MakeScale(a.rect.width / 4, a.rect.height / 4, 1)
+            #else
+            mat.diffuse.contentsTransform = SCNMatrix4MakeScale(Float(a.rect.width / 4), Float(a.rect.height / 4), 1)
+            #endif
+            scene.rootNode.addChildNode(floorShape(a.rect, holes: inside, mat: mat))
+        }
+        // the wells: dark stone walls going down to a floor, with a metal lip flush with the ground
+        let wallMat = Art.pbr(rgb(0.13, 0.09, 0.17), rough: 0.9)
+        let bottomMat = Art.pbr(rgb(0.1, 0.07, 0.13), rough: 0.9)
+        let lipMat = Art.pbr(rgb(0.55, 0.42, 0.25), metal: 0.9, rough: 0.3)
+        let D = wellDepth
+        for h in holes {
+            let n = SCNNode()
+            n.position = world(h.p)
+            let wall = SCNTube(innerRadius: h.r, outerRadius: h.r + 0.1, height: D + 0.04)
+            wall.radialSegmentCount = 64
+            wall.materials = [wallMat]
+            let wn = SCNNode(geometry: wall); wn.position = v3(0, -(D + 0.04) / 2 - 0.005, 0); n.addChildNode(wn)
+            let bottom = SCNCylinder(radius: h.r + 0.05, height: 0.02); bottom.radialSegmentCount = 64
+            bottom.materials = [bottomMat]
+            let bn = SCNNode(geometry: bottom); bn.position = v3(0, -D - 0.03, 0); n.addChildNode(bn)
+            let lip = SCNTube(innerRadius: h.r, outerRadius: h.r + 0.13, height: 0.02); lip.radialSegmentCount = 64
+            lip.materials = [lipMat]
+            let ln = SCNNode(geometry: lip); ln.position = v3(0, 0.005, 0); n.addChildNode(ln)
             scene.rootNode.addChildNode(n)
         }
+        coins.wells = holes.map { SIMD3<Float>(Float($0.p.x), Float($0.p.y), Float($0.r)) }
+        coins.wellDepth = Float(D)
     }
 
     /// Sharp purple crystal walls. Their bases sit on the real collision edges, so what you see is what you hit.
-    func buildWalls() {
-        var rng = SeededRNG(s: 42)
-        func r(_ a: CGFloat, _ b: CGFloat) -> CGFloat { CGFloat.random(in: a...b, using: &rng) }
+    /// The purple crystal walls of the mines.
+    func buildMineWalls() {
         let mats: [SCNMaterial] = [
             Art.pbr(rgb(0.36, 0.17, 0.62), metal: 0.15, rough: 0.22, emit: rgb(0.06, 0.01, 0.12)),
             Art.pbr(rgb(0.55, 0.3, 0.88), metal: 0.1, rough: 0.18, emit: rgb(0.1, 0.03, 0.18)),
             Art.pbr(rgb(0.26, 0.12, 0.45), metal: 0.2, rough: 0.3, emit: rgb(0.03, 0.0, 0.07)),
             Art.pbr(rgb(0.72, 0.5, 1.0), metal: 0.05, rough: 0.15, emit: rgb(0.16, 0.06, 0.26)),
         ]
+        buildWalls(rects: areas.map { $0.rect }, gates: gates, openings: areas.map { $0.beltStart.y }, openingHalf: 1.0,
+                   mats: mats, rockMat: Art.pbr(rgb(0.17, 0.11, 0.24), rough: 0.9), seed: 42)
+    }
+
+    /// Jagged walls around a row of rooms: tall at the back (left), low spikes at the front (right),
+    /// a band between rooms with a gap for each gate, and an opening in each room's left wall at `openings`.
+    func buildWalls(rects: [CGRect], gates: [Gate], openings: [CGFloat], openingHalf: CGFloat,
+                    mats: [SCNMaterial], rockMat: SCNMaterial, seed: UInt64) {
+        var rng = SeededRNG(s: seed)
+        func r(_ a: CGFloat, _ b: CGFloat) -> CGFloat { CGFloat.random(in: a...b, using: &rng) }
         var protos: [SCNGeometry] = []
         for k in 0..<12 {
             let g = Art.crystal(sides: k % 3 == 0 ? 5 : 6, body: Float(r(1.2, 2.6)), tip: Float(r(0.7, 1.4)), twist: Float(r(-0.25, 0.25)))
             g.materials = [mats[k % mats.count]]
             protos.append(g)
         }
-        let rockMat = Art.pbr(rgb(0.17, 0.11, 0.24), rough: 0.9)
         let rock: SCNGeometry = { let g = SCNSphere(radius: 1); g.segmentCount = 6; g.materials = [rockMat]; return g }()
         let container = SCNNode()
 
@@ -420,23 +479,22 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             }
         }
 
-        for (i, a) in areas.enumerated() {
-            let ra = a.rect
+        for (i, ra) in rects.enumerated() {
             // left side faces away from the camera (tall), right side faces it (low)
-            let beltY = a.beltStart.y
+            let beltY = openings[i]
             wall(from: CGPoint(x: ra.minX, y: ra.minY), to: CGPoint(x: ra.minX, y: ra.maxY), out: CGPoint(x: -1, y: 0), low: false,
-                 skip: { abs($0.y - beltY) < 1.0 })   // opening for the conveyor belt
+                 skip: { abs($0.y - beltY) < openingHalf })   // opening for the conveyor belt
             wall(from: CGPoint(x: ra.maxX, y: ra.minY), to: CGPoint(x: ra.maxX, y: ra.maxY), out: CGPoint(x: 1, y: 0), low: true)
             if i == 0 {
                 wall(from: CGPoint(x: ra.minX, y: ra.minY), to: CGPoint(x: ra.maxX, y: ra.minY), out: CGPoint(x: 0, y: -1), low: true)
             }
-            if i == areas.count - 1 {
+            if i == rects.count - 1 {
                 wall(from: CGPoint(x: ra.minX, y: ra.maxY), to: CGPoint(x: ra.maxX, y: ra.maxY), out: CGPoint(x: 0, y: 1), low: false)
             }
         }
         // Walls between mines: a band of medium crystals with a gap for the gate
         for (i, g) in gates.enumerated() {
-            let a = areas[i].rect, b = areas[i + 1].rect
+            let a = rects[i], b = rects[i + 1]
             let x0 = min(a.minX, b.minX), x1 = max(a.maxX, b.maxX)
             var x = x0
             while x <= x1 {
@@ -449,10 +507,10 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         scene.rootNode.addChildNode(container.flattenedClone())
     }
 
-    func buildGates() {
+    func buildGates(_ list: [Gate], cap: SKColor = rgb(0.75, 0.2, 0.35)) {
         let barMat = Art.pbr(rgb(0.55, 0.55, 0.65), metal: 0.9, rough: 0.3)
-        let capMat = Art.pbr(rgb(0.75, 0.2, 0.35), metal: 0.3, rough: 0.4)
-        for g in gates {
+        let capMat = Art.pbr(cap, metal: 0.3, rough: 0.4)
+        for g in list {
             g.bars.position = v3(g.x, 0, -g.y)
             var x = -g.half + 0.2
             while x <= g.half - 0.2 {
@@ -470,28 +528,35 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         }
     }
 
-    func buildTags() {
-        let pitMat = Art.pbr(rgb(0.08, 0.05, 0.11), rough: 0.9)
-        let collarMat = Art.pbr(rgb(0.55, 0.42, 0.25), metal: 0.9, rough: 0.3)
+    /// Size each button so its coins make a low pile, about 1.5 layers deep with some room to spare.
+    /// Buttons sharing a spot share the biggest size, since they share a well.
+    func sizeTags() {
         for t in tags {
-            // size the button so the needed coins make a pile a few layers high
             let need = t.price / Double(areas[t.area].value)
-            t.radius = min(t.kind == .win ? 3.0 : 2.2, max(0.75, CGFloat((need * 0.045 / (Double.pi * 2.5)).squareRoot())))
+            let d = 2 * Double(Art.coinRadius) * 0.86          // coin spacing in a packed layer
+            let fit = CGFloat((need * d * d / (Double.pi * 1.5)).squareRoot()) * 1.15
+            t.radius = min(4, max(0.75, fit))
+        }
+        for t in tags { t.radius = tags.filter { $0.pos == t.pos }.map { $0.radius }.max()! }
+    }
+
+    /// Height of the glowing button plate (the well's floor).
+    var discY: CGFloat { -wellDepth - 0.01 }
+
+    func buildTags() {
+        for t in tags {
             let R = t.radius
             t.node.position = world(t.pos)
-            // dark pit, the button itself sitting a little lower than the collar, and the collar
-            let pit = SCNCylinder(radius: R + 0.1, height: 0.02); pit.materials = [pitMat]
-            let pn = SCNNode(geometry: pit); pn.position = v3(0, 0.005, 0); t.node.addChildNode(pn)
-            let disc = SCNCylinder(radius: R * 0.86, height: 0.04); disc.materials = [t.discMat]
+            // the glowing plate at the bottom of the well
+            let disc = SCNCylinder(radius: R, height: 0.02); disc.radialSegmentCount = 64
+            disc.materials = [t.discMat]
             if case .gate = t.kind { t.discMat.diffuse.contents = rgb(0.7, 0.3, 0.95); t.discMat.emission.contents = rgb(0.3, 0.08, 0.45) }
             if t.kind == .win { t.discMat.diffuse.contents = rgb(1, 0.85, 0.3); t.discMat.emission.contents = rgb(0.8, 0.5, 0.05) }
             t.disc.geometry = disc
-            t.disc.position = v3(0, 0.01, 0)
+            t.disc.position = v3(0, discY, 0)
             t.node.addChildNode(t.disc)
-            let collar = SCNTube(innerRadius: R * 0.88, outerRadius: R + 0.12, height: 0.12); collar.materials = [collarMat]
-            let cn = SCNNode(geometry: collar); cn.position = v3(0, 0.06, 0); t.node.addChildNode(cn)
-            // progress ring on the floor around the collar
-            let ring = SCNPlane(width: (R + 0.5) * 2, height: (R + 0.5) * 2)
+            // progress ring on the floor around the well's lip
+            let ring = SCNPlane(width: (R + 0.75) * 2, height: (R + 0.75) * 2)
             t.ringMat.lightingModel = .constant
             t.ringMat.writesToDepthBuffer = false
             ring.materials = [t.ringMat]
@@ -514,40 +579,48 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         }
     }
 
+    static let beltFrameMat = Art.pbr(rgb(0.22, 0.22, 0.26), metal: 0.8, rough: 0.4)
+    static let beltRailMat = Art.pbr(rgb(1, 0.72, 0.1), metal: 0.3, rough: 0.4)
+
+    /// A conveyor belt on legs from `a` to `b` (the belt surface at height 0.55). `mat` is the moving belt.
+    func conveyor(from a: CGPoint, to b: CGPoint, mat: SCNMaterial) -> SCNNode {
+        let frameMat = Game.beltFrameMat, railMat = Game.beltRailMat
+        let dir = (b - a).normalized, L = a.dist(b), hw: CGFloat = 0.55, top: CGFloat = 0.55
+        // the belt runs along its local z axis
+        let g = SCNNode()
+        g.position = world((a + b) * 0.5)
+        g.eulerAngles = v3(0, atan2(dir.x, -dir.y), 0)
+        mat.diffuse.contents = Art.beltImage
+        mat.diffuse.wrapS = .repeat
+        mat.diffuse.wrapT = .repeat
+        mat.roughness.contents = 0.8
+        mat.lightingModel = .physicallyBased
+        let body = SCNBox(width: hw * 2, height: 0.12, length: L, chamferRadius: 0.02)
+        body.materials = [frameMat, frameMat, frameMat, frameMat, mat, frameMat]
+        let bn = SCNNode(geometry: body); bn.position = v3(0, top - 0.06, 0); g.addChildNode(bn)
+        for sx in [-1.0, 1.0] as [CGFloat] {
+            Art.box(0.09, 0.22, L, railMat, at: v3(sx * (hw + 0.05), top + 0.05, 0), chamfer: 0.02, in: g)
+            var z = -L / 2 + 0.4
+            while z < L / 2 {
+                let leg = SCNCylinder(radius: 0.06, height: top - 0.1); leg.materials = [frameMat]
+                let ln = SCNNode(geometry: leg); ln.position = v3(sx * hw * 0.8, (top - 0.1) / 2, z); g.addChildNode(ln)
+                z += 1.2
+            }
+        }
+        let roller = SCNCylinder(radius: 0.1, height: hw * 2 + 0.1); roller.materials = [railMat]
+        let rn = SCNNode(geometry: roller); rn.eulerAngles = v3(0, 0, .pi / 2); rn.position = v3(0, top - 0.06, L / 2)
+        g.addChildNode(rn)
+        return g
+    }
+
     func buildBelts() {
-        let frameMat = Art.pbr(rgb(0.22, 0.22, 0.26), metal: 0.8, rough: 0.4)
-        let railMat = Art.pbr(rgb(1, 0.72, 0.1), metal: 0.3, rough: 0.4)
+        let frameMat = Game.beltFrameMat
+        let railMat = Game.beltRailMat
         let goldMat = Art.pbr(rgb(1, 0.75, 0.2), metal: 1, rough: 0.28, emit: rgb(0.35, 0.2, 0.0))
         for (i, a) in areas.enumerated() {
             let b = Belt(area: i, a: a)
             belts.append(b)
-            let L = b.length, hw = b.halfWidth, top = b.top
-            // the belt runs along its local z axis
-            let g = SCNNode()
-            let mid = (b.start + b.end) * 0.5
-            g.position = world(mid)
-            g.eulerAngles = v3(0, atan2(b.dir.x, -b.dir.y), 0)
-            b.beltMat.diffuse.contents = Art.beltImage
-            b.beltMat.diffuse.wrapS = .repeat
-            b.beltMat.diffuse.wrapT = .repeat
-            b.beltMat.roughness.contents = 0.8
-            b.beltMat.lightingModel = .physicallyBased
-            let body = SCNBox(width: hw * 2, height: 0.12, length: L, chamferRadius: 0.02)
-            body.materials = [frameMat, frameMat, frameMat, frameMat, b.beltMat, frameMat]
-            let bn = SCNNode(geometry: body); bn.position = v3(0, top - 0.06, 0); g.addChildNode(bn)
-            for sx in [-1.0, 1.0] as [CGFloat] {
-                Art.box(0.09, 0.22, L, railMat, at: v3(sx * (hw + 0.05), top + 0.05, 0), chamfer: 0.02, in: g)
-                var z = -L / 2 + 0.4
-                while z < L / 2 {
-                    let leg = SCNCylinder(radius: 0.06, height: top - 0.1); leg.materials = [frameMat]
-                    let ln = SCNNode(geometry: leg); ln.position = v3(sx * hw * 0.8, (top - 0.1) / 2, z); g.addChildNode(ln)
-                    z += 1.2
-                }
-            }
-            let roller = SCNCylinder(radius: 0.1, height: hw * 2 + 0.1); roller.materials = [railMat]
-            let rn = SCNNode(geometry: roller); rn.eulerAngles = v3(0, 0, .pi / 2); rn.position = v3(0, top - 0.06, L / 2)
-            g.addChildNode(rn)
-            scene.rootNode.addChildNode(g)
+            scene.rootNode.addChildNode(conveyor(from: b.start, to: b.end, mat: b.beltMat))
 
             // hopper full of gold where the belt comes out of the wall
             let h = SCNNode()
@@ -582,7 +655,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         for i in 0..<n {
             let coin = SCNNode(geometry: Art.coinGeo)
             let a = CGFloat.random(in: 0...(2 * .pi)), d = CGFloat.random(in: 0...0.2)
-            coin.position = v3(cos(a) * d, 0.02 + CGFloat(i / 3) * 0.045 + CGFloat.random(in: 0...0.02), sin(a) * d)
+            coin.position = v3(cos(a) * d, 0.02 + CGFloat(i / 3) * Art.coinThick + CGFloat.random(in: 0...0.02), sin(a) * d)
             coin.eulerAngles = v3(.random(in: -0.4...0.4), .random(in: 0...6), .random(in: -0.4...0.4))
             c.addChildNode(coin)
         }
@@ -667,28 +740,31 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     }
 
     func buildEffects() {
-        dust.addParticleSystem(Art.particles(color: rgb(1, 0.85, 0.4), size: 0.09, life: 0.5, speed: 2.5,
-                                             spread: 70, gravity: -7, additive: true))
         smoke.addParticleSystem(Art.particles(color: SKColor(white: 0.85, alpha: 0.6), size: 0.3, life: 0.9, speed: 0.8,
                                               spread: 20, gravity: 0.8, additive: false))
         burst.addParticleSystem(Art.particles(color: rgb(1, 0.85, 0.35), size: 0.14, life: 0.8, speed: 4,
                                               spread: 80, gravity: -6, additive: true))
-        for n in [dust, smoke, burst] { scene.rootNode.addChildNode(n) }
+        for n in [smoke, burst] { scene.rootNode.addChildNode(n) }
     }
 
     func applyTier() {
-        guard shownTier != tier else { return }
-        shownTier = tier
+        let key = "\(stage)\(tier)"
+        guard shownDozer != key else { return }
+        shownDozer = key
         if dozerModels.isEmpty { dozerModels = (0..<6).map { DozerModel.build(level: $0) } }
+        if quarryDozers.isEmpty { quarryDozers = (0..<4).map { DozerModel.build(level: $0, flat: true) } }
         dozer?.node.removeFromParentNode()
-        dozer = dozerModels[tier]
+        dozer = stage == .quarry ? quarryDozers[min(tier, quarryDozers.count - 1)] : dozerModels[tier]
         dozer.node.simdScale = [1, 1, 1]
         scene.rootNode.addChildNode(dozer.node)
         placeDozer()
     }
 
-    /// Start over: first mine, first dozer, every belt full again, no gold on the floor.
-    func resetWorld() {
+    /// Start over (round 1), or the next round after a win: back up to the quarry, first dozer,
+    /// fresh blocks and full belts, no gold on the floor.
+    func resetWorld(round newRound: Int = 1) {
+        round = newRound
+        nextRoundT = -1
         tier = 0
         won = false
         for g in gates {
@@ -701,7 +777,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             t.amount = 0
             t.meltT = -1
             t.blob.isHidden = true
-            t.disc.position = v3(0, 0.01, 0)
+            t.disc.position = v3(0, discY, 0)
             t.drawnKey = ""
         }
         coins.reset()
@@ -714,7 +790,8 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             b.flyers = []
             b.drawnLeft = -1
         }
-        pos = startPos; prevPos = pos; camTarget = pos
+        resetQuarry(round: round)
+        pos = quarry.start; prevPos = pos; camTarget = pos
         heading = .pi / 2; prevHeading = heading
         velocity = 0; pushLoad = 0; pop = 0
         applyTier()
@@ -795,6 +872,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
 
     /// Is a circle of radius r at (x, y) outside the open play area?
     func blocked(_ x: CGFloat, _ y: CGFloat, _ r: CGFloat) -> Bool {
+        if stage == .quarry { return quarryBlocked(x, y, r) }
         guard let ai = areas.firstIndex(where: { y >= $0.rect.minY && y < $0.rect.maxY }) else { return true }
         guard areaUnlocked(ai) else { return true }
         let a = areas[ai].rect
@@ -826,6 +904,21 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         }
         drive(dt)
 
+        if stage == .quarry {
+            let load = updateQuarry(dt)
+            pushLoad = lerp(pushLoad, load, 1 - exp(-10 * dt))
+            updateVisuals(dt, pushing: load > 0)
+            updateTwinkles(dt)
+            updateLeaving(dt)
+            let ri = quarry.room(at: pos) ?? 0
+            hud.loadLabel.text = (round > 1 ? "R\(round) · " : "") + "QUARRY \(ri + 1)  ·  DOZER \(tier + 1)"
+            let c = quarry.crushers[ri]
+            var title = "CRUSHER"
+            if !c.upgraded, let at = Quarry.plan(ri, round: round).upgradeAt, tier < Quarry.maxTier(round: round) { title = "BIGGER DOZER AT \(at)" }
+            hud.showCounters((title, min(c.crushed, c.need), c.need), haveCaption: "GOLD IN")
+            return
+        }
+
         let blade = makeBlade()
         let contacts = coins.step(dt: Float(dt), blade: blade, fillers: [],
                                   blocked: { [unowned self] x, y in self.blocked(CGFloat(x), CGFloat(y), 0.1) },
@@ -836,14 +929,96 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         tagRedrawTimer += dt
         if tagRedrawTimer > 0.12 {
             tagRedrawTimer = 0
-            for t in tags where tagVisible(t) { refreshTag(t) }   // only redraws when the number changed
+            for t in tags where tagVisible(t) { refreshTag(t) }   // only redraws when the ring changed
         }
         updateBelts(dt)
         updateVisuals(dt, pushing: contacts > 0)
         coins.render(material: Art.coinMat)
+        updateTwinkles(dt)
 
         let ai = areas.firstIndex(where: { pos.y >= $0.rect.minY && pos.y < $0.rect.maxY }) ?? 0
-        hud.loadLabel.text = "MINE \(ai + 1)  ·  DOZER \(tier + 1)"
+        hud.loadLabel.text = (round > 1 ? "R\(round) · " : "") + "MINE \(ai + 1)  ·  DOZER \(tier + 1)"
+        updateCounters()
+        // after a win: a few seconds to enjoy it, then back up to the quarry for the next round
+        if nextRoundT >= 0 {
+            let before = nextRoundT
+            nextRoundT += dt
+            if before < 4 && nextRoundT >= 4 { DispatchQueue.main.async { [weak self] in self?.hud.fadeThrough() } }
+            if before < 4.6 && nextRoundT >= 4.6 { resetWorld(round: round + 1) }
+        }
+    }
+
+    /// The two counters at the top: coins on the nearest button and coins it needs.
+    func updateCounters() {
+        let near = tags.filter { tagVisible($0) }.min { $0.pos.dist(pos) < $1.pos.dist(pos) }
+        guard let t = near else { hud.showCounters(nil); return }
+        let value = Double(areas[t.area].value)
+        let need = Int((t.price / value).rounded(.up))
+        let have = t.meltT >= 0 ? need : min(need, Int((t.amount / value).rounded(.down)))
+        let name: String
+        switch t.kind {
+        case .dozer: name = "NEXT DOZER"
+        case .gate: name = "GATE"
+        case .win: name = "VICTORY"
+        }
+        hud.showCounters((name, have, need))
+    }
+
+    /// Every so often a coin on screen catches the light: a little star glint pops on it and fades.
+    func updateTwinkles(_ dt: CGFloat) {
+        if twinkles.isEmpty {
+            let plane = SCNPlane(width: 0.9, height: 0.9)
+            plane.materials = [Art.twinkleMat]
+            for _ in 0..<6 {
+                let n = SCNNode()
+                n.constraints = [SCNBillboardConstraint()]
+                n.isHidden = true
+                let star = SCNNode(geometry: plane)
+                star.renderingOrder = 10
+                n.addChildNode(star)
+                scene.rootNode.addChildNode(n)
+                twinkles.append(n)
+            }
+        }
+        twinkleTimer -= dt
+        if stage == .quarry {
+            guard twinkleTimer <= 0 else { return }
+            twinkleTimer = .random(in: 0.3...0.8)
+            let live = quarry.blocks.filter { !$0.gone && $0.crushT < 0 && ($0.p - camTarget).length < camScale * 0.8 }
+            guard let b = live.randomElement(), let n = twinkles.first(where: { $0.isHidden }) else { return }
+            let off = CGPoint(x: .random(in: -0.4...0.4), y: .random(in: -0.4...0.4)) * b.r
+            popTwinkle(n, at: world(b.p + off, b.r * 0.85 + 0.05))
+            return
+        }
+        guard twinkleTimer <= 0, coins.count > 0 else { return }
+        twinkleTimer = .random(in: 0.15...0.5)
+        guard let n = twinkles.first(where: { $0.isHidden }) else { return }
+        // a random resting coin near the middle of the screen
+        for _ in 0..<12 {
+            let i = Int.random(in: 0..<coins.count)
+            guard coins.state[i] == .asleep || coins.state[i] == .awake else { continue }
+            let p = CGPoint(x: CGFloat(coins.px[i]), y: CGFloat(coins.py[i]))
+            guard (p - camTarget).length < camScale * 0.8 else { continue }
+            // on the coin's face, nudged toward the light side
+            let off = CGPoint(x: .random(in: -0.07...0.07), y: .random(in: -0.07...0.07))
+            popTwinkle(n, at: world(p + off, CGFloat(coins.ph[i] + coins.thick) + 0.03))
+            break
+        }
+    }
+
+    /// Show one glint: it grows, spins a little and fades.
+    func popTwinkle(_ n: SCNNode, at p: SCNVector3) {
+        n.position = p
+        let star = n.childNodes[0]
+        let s = CGFloat.random(in: 0.8...1.2)
+        star.scale = v3(0.01, 0.01, 0.01)
+        star.eulerAngles = v3(0, 0, .random(in: 0...0.8))
+        n.isHidden = false
+        let grow = SCNAction.scale(to: s, duration: 0.14); grow.timingMode = .easeOut
+        let shrink = SCNAction.scale(to: 0.01, duration: 0.4); shrink.timingMode = .easeIn
+        star.runAction(.group([.sequence([grow, shrink]), .rotateBy(x: 0, y: 0, z: 0.9, duration: 0.54)])) {
+            n.isHidden = true
+        }
     }
 
     /// The dozer's chassis box and plow walls, in game coordinates.
@@ -935,6 +1110,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             let x = p.x + CGFloat(q.y) * fx + CGFloat(q.x) * lx
             let y = p.y + CGFloat(q.y) * fy + CGFloat(q.x) * ly
             if blocked(x, y, CGFloat(q.z)) { return true }
+            if stage == .quarry && hitsPinnedBlock(x, y, CGFloat(q.z)) { return true }
         }
         return false
     }
@@ -969,7 +1145,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             top = max(top, coins.ph[i])
             coins.consume(i)
         }
-        t.blobHeight = CGFloat(top) + 0.12
+        t.blobHeight = CGFloat(top) - discY + 0.12
         t.meltT = 0
         t.blob.isHidden = false
         burst.position = world(t.pos, 0.3)
@@ -987,7 +1163,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             let wob = 1 + sin(t.meltT * 18) * 0.03 * (1 - k)
             let rad = lerp(R * 0.75, R * 0.95, ease) * wob
             t.blob.scale = v3(rad, lerp(t.blobHeight, 0.03, ease), rad)
-            t.blob.position = v3(0, 0.02, 0)
+            t.blob.position = v3(0, discY + 0.02, 0)
             t.blobMat.emission.intensity = 0.6 + 2.2 * k
             t.discMat.emission.intensity = 1.6 + k
         } else if t.meltT < melt + drain {
@@ -995,12 +1171,12 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             let k = (t.meltT - melt) / drain
             let rad = R * 0.95 * (1 - k * k)
             t.blob.scale = v3(max(0.01, rad), 0.03, max(0.01, rad))
-            t.disc.position = v3(0, 0.01 - 0.05 * sin(k * .pi), 0)
+            t.disc.position = v3(0, discY - 0.05 * sin(k * .pi), 0)
             t.discMat.emission.intensity = 2.6 + 2 * sin(k * .pi)
         } else {
             t.meltT = -1
             t.blob.isHidden = true
-            t.disc.position = v3(0, 0.01, 0)
+            t.disc.position = v3(0, discY, 0)
             t.amount = 0
             purchase(t)
         }
@@ -1010,7 +1186,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         guard areaUnlocked(t.area) else { return false }
         switch t.kind {
         case .gate(let i): return !gates[i].open
-        case .dozer(let k): return k == tier + 1
+        case .dozer(let k): return k == tier + 1 && (round > 1 || k <= 3)   // dozers 5 and 6 wait for round 2
         case .win: return !won
         }
     }
@@ -1034,6 +1210,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             floatText("BIGGER DOZER!", at: pos, h: 2.5, color: .white, size: 36)
         case .win:
             won = true
+            nextRoundT = 0
             DispatchQueue.main.async { [weak self] in self?.hud.showWin() }
         }
         burst.position = world(t.pos, 0.3)
@@ -1062,9 +1239,6 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         body.simdPosition = [shake, bob, 0]
         dozer.node.simdScale = [s, s, s]
 
-        let front = pos + f * CGFloat(dozer.plow.map { $0.y }.max()! * 0.8)
-        dust.position = world(front, 0.25)
-        dust.particleSystems?.first?.birthRate = pushing ? 70 : 0
         smoke.simdPosition = dozer.node.simdConvertPosition(dozer.exhaust, to: nil)
         smoke.particleSystems?.first?.birthRate = moving ? 7 : 1.5
 
@@ -1093,21 +1267,23 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     }
 
     func refreshTag(_ t: Tag) {
-        let have = short(min(t.amount, t.price).rounded(.down)), need = short(t.price)
-        let progress = CGFloat(min(1, t.amount / t.price))
-        let key = "\(have)|\(Int(progress * 60))"
+        // the ring is redrawn only when its arc moves a visible step (drawing it costs a few ms on a phone)
+        let progress = CGFloat(Int(min(1, t.amount / t.price) * 40)) / 40
+        let key = "\(progress)"
         guard key != t.drawnKey else { return }
         t.drawnKey = key
-        let full = progress >= 1
         switch t.kind {
         case .gate:
-            t.ringMat.diffuse.contents = Art.ringImage(progress: progress, color: CGColor(red: 0.8, green: 0.45, blue: 1, alpha: 1))
-        case .dozer(let k):
-            t.ringMat.diffuse.contents = Art.ringImage(progress: progress, color: CGColor(red: 1, green: 0.78, blue: 0.2, alpha: 1))
+            t.ringMat.diffuse.contents = Art.ringImage(progress: progress, color: CGColor(red: 0.8, green: 0.45, blue: 1, alpha: 1), inner: ringInner(t))
+        case .dozer:
+            t.ringMat.diffuse.contents = Art.ringImage(progress: progress, color: CGColor(red: 1, green: 0.78, blue: 0.2, alpha: 1), inner: ringInner(t))
         case .win:
-            t.ringMat.diffuse.contents = Art.ringImage(progress: progress, color: CGColor(red: 1, green: 0.9, blue: 0.4, alpha: 1))
+            t.ringMat.diffuse.contents = Art.ringImage(progress: progress, color: CGColor(red: 1, green: 0.9, blue: 0.4, alpha: 1), inner: ringInner(t))
         }
     }
+
+    /// Where the progress ring starts (just outside the well's lip), as a fraction of the ring image.
+    func ringInner(_ t: Tag) -> CGFloat { (t.radius + 0.2) / (t.radius + 0.75) }
 
     func screen(_ p: CGPoint, _ h: CGFloat) -> CGPoint {
         guard let view = view else { return .zero }

@@ -12,17 +12,37 @@ Inspired by "Idle Zombie Miner" ads.
 
 ## How to play
 
+### The quarry (up top)
+
+The game starts in a desert quarry above the mines: four red sandstone rooms laid out like the mines.
+
+- Push the big **gold blocks** onto the **feeder belt** in the floor by the room's left wall. The belt carries them
+  into the **crusher** set in the wall, which grinds them into coins that ride a conveyor out the back
+  and down a shaft to the mines.
+- Gold comes in four sizes. Bigger lumps are worth more gold (1 to 4) but need a bigger dozer to move:
+  try a big one too early and it won't budge ("NEED DOZER 2!").
+- The counters at the top show the gold you have put into the room's crusher and the gold its gate needs.
+  Crush enough small lumps and you get a bigger dozer, which can move the big ones that finish the room.
+- After the fourth room you head down to mine 1.
+- Round 1 tops out at dozer 3 up here and dozer 4 in the mines. The biggest dozers (and the huge gold lumps)
+  wait for round 2.
+
+### The mines
+
 - Each mine is fed by a **conveyor belt** outside its wall. Random little piles of coins ride out of a hopper,
   and at the end of the belt the coins fly through a gap in the crystal wall and scatter across the mine floor.
   The belt slows down as it empties and finally runs dry. It is the only gold in the mine.
-- Push coins onto a **button** in the floor (orange: next dozer, purple: gate, yellow: victory).
+- Push coins into a **button**, a glowing well sunk into the floor (orange: next dozer, purple: gate, yellow: victory).
   The ring around it fills up as coins pile on. Push coins off again and it goes down.
+  The counters at the top show how many coins are on the nearest button and how many it needs.
 - When the pile reaches the price, it **melts** into the button:
   - **DOZER** buttons give you the next, bigger bulldozer (6 levels, wider plows, more pushing power).
   - **GATE** buttons open the next mine (4 mines, each coin is worth more: 1, 3, 8, 25).
-  - The **VICTORY** button in mine 4 needs about 2,000 coins. Fill it to win.
+  - The **VICTORY** button in mine 4 needs 400 coins. Fill it to win, and the next round starts back up
+    in the quarry with more gold blocks to crush.
+- Buttons need 100 coins each in mine 1, 200 in mine 2, 300 in mine 3 and 400 in mine 4.
 - Each belt holds just a little more gold than its mine's dozer and gate cost together, so collect every coin.
-- The game does not save. **NEW GAME** (top right, tap twice) starts over.
+- The game does not save. **NEW GAME** (top right, tap twice) starts over, back up in the quarry.
 
 ### Controls
 
@@ -62,6 +82,7 @@ Sources/GoldGrinder/
   main.swift                  Mac window, mouse and keyboard input
   Game.swift                  Game rules, mines, belts, buttons, camera, driving
   Coins.swift                 Coin physics (pushing, stacking, falling) and batched coin rendering
+  Quarry.swift                The desert quarry: gold blocks, crushers, and the trip down to the mines
   DozerModel.swift            The six 3D bulldozers, built from code
   Art.swift                   Materials, crystal walls, textures, signs and icons (CoreGraphics)
   Hud.swift                   2D overlay: labels, joystick, NEW GAME button, win screen

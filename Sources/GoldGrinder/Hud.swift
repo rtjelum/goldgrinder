@@ -17,6 +17,15 @@ final class Hud: SKScene {
     let newGameButton = SKShapeNode(rectOf: CGSize(width: 128, height: 40), cornerRadius: 14)
     let newGameLabel = SKLabelNode(fontNamed: hudFont)
     let winPanel = SKNode()
+    // counters for the nearest button: coins on it and coins it needs
+    let counters = SKNode()
+    let counterTitle = SKLabelNode(fontNamed: hudFont)
+    let counterShadow = SKLabelNode(fontNamed: hudFont)
+    var counterCaptions: [SKLabelNode] = []
+    let haveLabel = SKLabelNode(fontNamed: hudFont)
+    let needLabel = SKLabelNode(fontNamed: hudFont)
+    private var shownCounters = ""
+    let fade = SKSpriteNode(color: .black, size: CGSize(width: 6000, height: 6000))
     private var confirming = false
 
     override init(size: CGSize) {
@@ -57,7 +66,7 @@ final class Hud: SKScene {
         winPanel.addChild(shade)
         for (text, size, y, color) in [("YOU WIN!", 56.0, 40.0, SKColor(red: 1, green: 0.82, blue: 0.3, alpha: 1)),
                                        ("You melted the golden pile", 20.0, -14.0, SKColor.white),
-                                       ("Tap NEW GAME to play again", 17.0, -50.0, SKColor(white: 0.85, alpha: 1))]
+                                       ("Next round: back up to the quarry", 17.0, -50.0, SKColor(white: 0.85, alpha: 1))]
             as [(String, CGFloat, CGFloat, SKColor)] {
             let l = SKLabelNode(fontNamed: hudFont)
             l.text = text; l.fontSize = size; l.fontColor = color; l.position = CGPoint(x: 0, y: y)
@@ -78,6 +87,41 @@ final class Hud: SKScene {
             controls[c] = b
         }
         #endif
+        counterTitle.fontSize = 15
+        counterTitle.fontColor = SKColor(red: 1, green: 0.82, blue: 0.4, alpha: 1)
+        counterTitle.verticalAlignmentMode = .center
+        counterTitle.position = CGPoint(x: 0, y: 34)
+        counterShadow.fontSize = 15
+        counterShadow.fontColor = SKColor(white: 0, alpha: 0.75)
+        counterShadow.verticalAlignmentMode = .center
+        counterShadow.position = CGPoint(x: 1.5, y: 32.5)
+        counters.addChild(counterShadow)
+        counters.addChild(counterTitle)
+        for (i, caption) in ["COLLECTED", "NEEDED"].enumerated() {
+            let box = SKShapeNode(rectOf: CGSize(width: 116, height: 50), cornerRadius: 12)
+            box.fillColor = SKColor(red: 0.22, green: 0.12, blue: 0.32, alpha: 0.85)
+            box.strokeColor = SKColor(red: 1, green: 0.78, blue: 0.25, alpha: 1)
+            box.lineWidth = 2.5
+            box.position = CGPoint(x: i == 0 ? -64 : 64, y: 0)
+            let cap = SKLabelNode(fontNamed: hudFont)
+            cap.text = caption; cap.fontSize = 11; cap.fontColor = SKColor(white: 0.85, alpha: 1)
+            cap.verticalAlignmentMode = .center
+            cap.position = CGPoint(x: 0, y: 13)
+            box.addChild(cap)
+            counterCaptions.append(cap)
+            let num = i == 0 ? haveLabel : needLabel
+            num.fontSize = 24; num.fontColor = .white
+            num.verticalAlignmentMode = .center
+            num.position = CGPoint(x: 0, y: -8)
+            box.addChild(num)
+            counters.addChild(box)
+        }
+        counters.zPosition = 10
+        counters.isHidden = true
+        addChild(counters)
+        fade.alpha = 0
+        fade.zPosition = 40
+        addChild(fade)
         winPanel.zPosition = 20
         winPanel.isHidden = true
         addChild(winPanel)
@@ -95,6 +139,7 @@ final class Hud: SKScene {
         loadIcon.position = CGPoint(x: 36, y: h - 86)
         loadLabel.position = CGPoint(x: 24, y: h - 44)
         newGameButton.position = CGPoint(x: size.width - 80, y: h - 44)
+        counters.position = CGPoint(x: size.width / 2, y: h - 118)
         loadLabel.fontSize = size.width < 460 ? 16 : 22   // leave room for the NEW GAME button on phones
         winPanel.position = CGPoint(x: size.width / 2, y: size.height * 0.62)
         let by = bottomInset + 70
@@ -124,6 +169,27 @@ final class Hud: SKScene {
             self?.newGameLabel.text = "NEW GAME"
         }]), withKey: "confirm")
         return false
+    }
+
+    /// Show coins collected / needed for a button, or hide the counters (nil).
+    func showCounters(_ c: (name: String, have: Int, need: Int)?, haveCaption: String = "COLLECTED") {
+        let key = c.map { "\($0.name)|\($0.have)|\($0.need)|\(haveCaption)" } ?? ""
+        guard key != shownCounters else { return }
+        shownCounters = key
+        guard let c = c else { counters.isHidden = true; return }
+        counters.isHidden = false
+        counterTitle.text = c.name
+        counterShadow.text = c.name
+        counterCaptions.first?.text = haveCaption
+        haveLabel.text = "\(c.have)"
+        needLabel.text = "\(c.need)"
+        haveLabel.fontColor = c.have >= c.need ? SKColor(red: 0.5, green: 1, blue: 0.5, alpha: 1) : .white
+    }
+
+    /// Fade to black and back (used when heading down from the quarry to the mines).
+    func fadeThrough() {
+        fade.removeAllActions()
+        fade.run(.sequence([.fadeAlpha(to: 1, duration: 0.5), .wait(forDuration: 0.4), .fadeAlpha(to: 0, duration: 0.7)]))
     }
 
     func showWin() {

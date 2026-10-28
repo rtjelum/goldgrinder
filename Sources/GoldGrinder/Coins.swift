@@ -9,8 +9,16 @@ import simd
 final class CoinField {
     enum State: UInt8 { case asleep, awake, selling, dead, growing }
 
-    let r: Float = 0.13
-    let thick: Float = 0.045
+    /// Coins pile at most this many layers high when pushed together, and only the bottom two
+    /// layers are stable: coins higher up slide off, so heaps spread out instead of towering.
+    static let maxLayers = 3
+
+    /// Button wells sunk into the floor: (x, y, radius). Coins inside one rest on its floor.
+    var wells: [SIMD3<Float>] = []
+    var wellDepth: Float = 0
+
+    let r = Float(Art.coinRadius)
+    let thick = Float(Art.coinThick)
 
     // Per-coin data (struct of arrays)
     var px = [Float](), py = [Float](), ph = [Float](), lastX = [Float](), lastY = [Float]()
@@ -60,7 +68,7 @@ final class CoinField {
     func buildTemplate() {
         let seg = 12
         let h = thick / 2
-        // top: centre + rim
+        // top: centre + rim (UVs put the coin's edge at 0.47 of the face texture)
         tP.append([0, h, 0]); tN.append([0, 1, 0]); tUV.append([0.5, 0.5])
         for i in 0..<seg {
             let a = Float(i) / Float(seg) * 2 * .pi
@@ -70,19 +78,28 @@ final class CoinField {
         for i in 0..<seg {
             tI += [0, UInt32(1 + (i + 1) % seg), UInt32(1 + i)]
         }
-        // side ring (top + bottom)
+        // side ring (top + bottom), coloured from the texture's plain corner
         let base = UInt32(tP.count)
         for i in 0..<seg {
             let a = Float(i) / Float(seg) * 2 * .pi
             let n = SIMD3<Float>(cos(a), 0, sin(a))
-            tP.append([cos(a) * r, h, sin(a) * r]); tN.append(n); tUV.append([0.03, 0.5])
-            tP.append([cos(a) * r, -h, sin(a) * r]); tN.append(n); tUV.append([0.02, 0.5])
+            tP.append([cos(a) * r, h, sin(a) * r]); tN.append(n); tUV.append([0.03, 0.03])
+            tP.append([cos(a) * r, -h, sin(a) * r]); tN.append(n); tUV.append([0.02, 0.02])
         }
         for i in 0..<seg {
             let t0 = base + UInt32(i * 2), b0 = t0 + 1
             let t1 = base + UInt32(((i + 1) % seg) * 2), b1 = t1 + 1
             tI += [t0, t1, b0, t1, b1, b0]
         }
+    }
+
+    /// Height of the ground under a point: the floor, or the bottom of a well.
+    @inline(__always) func ground(_ x: Float, _ y: Float) -> Float {
+        for w in wells {
+            let dx = x - w.x, dy = y - w.y
+            if dx * dx + dy * dy < w.z * w.z { return -wellDepth }
+        }
+        return 0
     }
 
     // MARK: Adding / indexing
@@ -297,7 +314,7 @@ final class CoinField {
         //    two coins hard together, the one being pushed from behind climbs on top: that builds the heap.
         let minD = 2 * r * 0.86, minD2 = minD * minD
         let layer = thick * 0.95
-        let maxH: Float = 0.6
+        let maxH = layer * Float(CoinField.maxLayers - 1) + 0.001
         for _ in 0..<3 {
             var k = 0
             while k < awake.count {
@@ -334,7 +351,7 @@ final class CoinField {
 
         // Squeezed coins climb on top of their neighbours: a jam turns into a heap instead of shivering
         for i in awake where state[i] == .awake && press[i] > 0.03 {
-            var top: Float = -1
+            var top = -Float.greatestFiniteMagnitude
             let (gx, gy) = gridIndex(px[i], py[i])
             for cy in max(0, gy - 1)...min(gRows - 1, gy + 1) {
                 for cx in max(0, gx - 1)...min(gCols - 1, gx + 1) {
@@ -348,7 +365,7 @@ final class CoinField {
                     }
                 }
             }
-            if top >= 0 && top + layer <= maxH {
+            if top > -1e9 && top + layer <= ground(px[i], py[i]) + maxH {
                 ph[i] = top + layer
                 touch(i)
             }
@@ -365,7 +382,9 @@ final class CoinField {
         while idx < awake.count {
             let i = awake[idx]; idx += 1
             guard state[i] == .awake else { continue }
-            var support: Float = 0
+            let g = ground(px[i], py[i])
+            var support = g
+            var topX = px[i], topY = py[i]     // the coin it rests on
             let (gx, gy) = gridIndex(px[i], py[i])
             for cy in max(0, gy - 1)...min(gRows - 1, gy + 1) {
                 for cx in max(0, gx - 1)...min(gCols - 1, gx + 1) {
@@ -375,7 +394,7 @@ final class CoinField {
                             let dx = px[j] - px[i], dy = py[j] - py[i]
                             if dx * dx + dy * dy < supportR2 {
                                 if ph[j] < ph[i] - layer * 0.5 {
-                                    support = max(support, ph[j] + layer)
+                                    if ph[j] + layer > support { support = ph[j] + layer; topX = px[j]; topY = py[j] }
                                 } else if ph[j] > ph[i] + layer * 0.5 && state[j] != .awake {
                                     wake(j)   // a coin resting on this one must be able to fall
                                 }
@@ -385,8 +404,20 @@ final class CoinField {
                     }
                 }
             }
+            if support > g + layer * 1.5 {
+                // resting on two or more coins: slide off the stack (faster the higher it is),
+                // so heaps spread out instead of building towers
+                var dx = px[i] - topX, dy = py[i] - topY
+                let d = (dx * dx + dy * dy).squareRoot()
+                if d < 1e-4 { let a = Float.random(in: 0...(2 * .pi)); dx = cos(a); dy = sin(a) } else { dx /= d; dy /= d }
+                let speed: Float = support > g + maxH ? 3 : 1.2
+                move(i, dx * speed * dt, dy * speed * dt, blocked)
+            }
             var falling = false
-            if ph[i] > support + 0.001 {
+            if ph[i] < support - 0.001 {
+                ph[i] = support          // pushed up out of a well
+                touch(i)
+            } else if ph[i] > support + 0.001 {
                 ph[i] = max(support, ph[i] - 2.2 * dt)
                 touch(i)
                 falling = true
@@ -519,7 +550,6 @@ final class CoinField {
             for ti in tI { idx.append(base + ti) }
         }
         let vData = verts.withUnsafeBufferPointer { Data(buffer: $0) }
-        let iData = idx.withUnsafeBufferPointer { Data(buffer: $0) }
         let vc = verts.count / 8
         let stride = 8 * MemoryLayout<Float>.size
         let pos = SCNGeometrySource(data: vData, semantic: .vertex, vectorCount: vc, usesFloatComponents: true,
@@ -528,7 +558,8 @@ final class CoinField {
                                     componentsPerVector: 3, bytesPerComponent: 4, dataOffset: 12, dataStride: stride)
         let uv = SCNGeometrySource(data: vData, semantic: .texcoord, vectorCount: vc, usesFloatComponents: true,
                                    componentsPerVector: 2, bytesPerComponent: 4, dataOffset: 24, dataStride: stride)
-        let el = SCNGeometryElement(data: iData, primitiveType: .triangles, primitiveCount: idx.count / 3, bytesPerIndex: 4)
+        let el = SCNGeometryElement(data: idx.withUnsafeBufferPointer { Data(buffer: $0) }, primitiveType: .triangles,
+                                    primitiveCount: idx.count / 3, bytesPerIndex: 4)
         let g = SCNGeometry(sources: [pos, nrm, uv], elements: [el])
         g.materials = [material]
         chunkNodes[k].geometry = g

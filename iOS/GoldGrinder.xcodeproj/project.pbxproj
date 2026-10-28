@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		9468DAB7641A4DEEB9D59A3E /* Art.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB8426C532C022FFA2A5935 /* Art.swift */; };
 		5D3B07D3434203D7273FC1DE /* Coins.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DDC9F6B9734F88346677221 /* Coins.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* Quarry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5061728394A5B6C /* Quarry.swift */; };
 		D3E311C40D4BEC9A7B92E598 /* DozerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C09FC52823C204E980A1915E /* DozerModel.swift */; };
 		EE3C96C5B071BA40493DF994 /* Game.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC16E43387E493E6714047E3 /* Game.swift */; };
 		34C5617BB7EFEBF495BADC62 /* Hud.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CE70D7C98836B4A0D8B3FF6 /* Hud.swift */; };
@@ -26,6 +27,7 @@
 		D2A57DC1D883FD21FB995169 /* GoldGrinder.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GoldGrinder.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EAB8426C532C022FFA2A5935 /* Art.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Art.swift"; path = "../Sources/GoldGrinder/Art.swift"; sourceTree = SOURCE_ROOT; };
 		7DDC9F6B9734F88346677221 /* Coins.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Coins.swift"; path = "../Sources/GoldGrinder/Coins.swift"; sourceTree = SOURCE_ROOT; };
+		B1C2D3E4F5061728394A5B6C /* Quarry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Quarry.swift"; path = "../Sources/GoldGrinder/Quarry.swift"; sourceTree = SOURCE_ROOT; };
 		C09FC52823C204E980A1915E /* DozerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "DozerModel.swift"; path = "../Sources/GoldGrinder/DozerModel.swift"; sourceTree = SOURCE_ROOT; };
 		CC16E43387E493E6714047E3 /* Game.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Game.swift"; path = "../Sources/GoldGrinder/Game.swift"; sourceTree = SOURCE_ROOT; };
 		7CE70D7C98836B4A0D8B3FF6 /* Hud.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Hud.swift"; path = "../Sources/GoldGrinder/Hud.swift"; sourceTree = SOURCE_ROOT; };
@@ -74,6 +76,7 @@
 			children = (
 				EAB8426C532C022FFA2A5935,
 				7DDC9F6B9734F88346677221,
+				B1C2D3E4F5061728394A5B6C,
 				C09FC52823C204E980A1915E,
 				CC16E43387E493E6714047E3,
 				7CE70D7C98836B4A0D8B3FF6,
@@ -179,6 +182,7 @@
 			files = (
 				9468DAB7641A4DEEB9D59A3E,
 				5D3B07D3434203D7273FC1DE,
+				A1B2C3D4E5F60718293A4B5C,
 				D3E311C40D4BEC9A7B92E598,
 				EE3C96C5B071BA40493DF994,
 				34C5617BB7EFEBF495BADC62,

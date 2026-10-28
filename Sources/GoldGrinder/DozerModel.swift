@@ -20,9 +20,17 @@ enum DozerModel {
 
     // MARK: Materials
 
-    static let yellow = Art.pbr(rgb(1, 0.74, 0.1), metal: 0.15, rough: 0.42)
-    static let yellowDark = Art.pbr(rgb(0.86, 0.58, 0.07), metal: 0.2, rough: 0.5)
-    static let steel = Art.pbr(rgb(0.74, 0.76, 0.8), metal: 0.85, rough: 0.3)
+    // worn-out paint and dull, dirty steel, about half covered in rust
+    static func worn(_ c: (CGFloat, CGFloat, CGFloat), seed: UInt64, metal: CGFloat, rough: CGFloat) -> SCNMaterial {
+        let m = Art.pbr(Art.wornPaint(c, seed: seed, rust: 0.5), metal: metal, rough: rough)
+        m.diffuse.wrapS = .repeat; m.diffuse.wrapT = .repeat
+        m.diffuse.mipFilter = .linear
+        return m
+    }
+    static let paint = worn((0.18, 0.4, 0.8), seed: 11, metal: 0.1, rough: 0.75)       // worn blue
+    static let paintDark = worn((0.11, 0.27, 0.6), seed: 12, metal: 0.15, rough: 0.78)
+    static let machineYellow = worn((0.93, 0.68, 0.14), seed: 14, metal: 0.1, rough: 0.75)   // hard hat, crushers
+    static let steel = worn((0.58, 0.58, 0.6), seed: 13, metal: 0.5, rough: 0.65)
     static let rubber = Art.pbr(rgb(0.13, 0.13, 0.15), rough: 0.85)
     static let wheel = Art.pbr(rgb(0.5, 0.52, 0.56), metal: 0.6, rough: 0.4)
     static let zombie = Art.pbr(rgb(0.48, 0.8, 0.3), rough: 0.6)
@@ -34,7 +42,7 @@ enum DozerModel {
         m.transparency = 0.45
         return m
     }()
-    static let plowMats: [SCNMaterial] = [yellow, yellowDark, steel].map { m in
+    static let plowMats: [SCNMaterial] = [paint, paintDark, steel].map { m in
         let c = m.copy() as! SCNMaterial
         c.isDoubleSided = true
         return c
@@ -102,16 +110,28 @@ enum DozerModel {
     static func extrude(_ pts: [SIMD2<Float>], y0: Float, y1: Float, thick: Float,
                         inner: SCNMaterial, outer: SCNMaterial, top: SCNMaterial) -> SCNNode {
         let ns = normals(pts)
-        var pos = [SIMD3<Float>](), nrm = [SIMD3<Float>]()
+        var pos = [SIMD3<Float>](), nrm = [SIMD3<Float>](), uvs = [SIMD2<Float>]()
         var groups: [[UInt32]] = [[], [], []]
+        // texture coordinates: u runs along the plow, v up its height
+        var along: [Float] = [0]
+        for i in 1..<pts.count { along.append(along[i - 1] + simd_distance(pts[i - 1], pts[i])) }
+        let span = max(0.001, y1 - y0)
+        var uvA: Float = 0, uvB: Float = 0   // u at the start / end of the current segment
         func quad(_ p: [SIMD3<Float>], _ n: [SIMD3<Float>], _ g: Int) {
             let b = UInt32(pos.count)
             pos += p; nrm += n
+            for (k, q) in p.enumerated() {
+                // inner and top quads start at corners 0 and 3, outer quads at corners 0 and 1
+                let atStart = g == 1 ? k < 2 : (k == 0 || k == 3)
+                let u = atStart ? uvA : uvB
+                uvs.append([u, g == 2 ? Float(k % 2) * 0.1 : (q.y - y0) / span])
+            }
             groups[g] += [b, b + 1, b + 2, b, b + 2, b + 3]
         }
         let h = thick / 2
         for i in 0..<(pts.count - 1) {
             let p0 = pts[i], p1 = pts[i + 1], n0 = ns[i], n1 = ns[i + 1]
+            uvA = along[i] / (span * 3); uvB = along[i + 1] / (span * 3)
             let i0 = p0 + n0 * h, i1 = p1 + n1 * h, o0 = p0 - n0 * h, o1 = p1 - n1 * h
             let N0 = SIMD3<Float>(n0.x, 0, n0.y), N1 = SIMD3<Float>(n1.x, 0, n1.y)
             quad([[i0.x, y0, i0.y], [i1.x, y0, i1.y], [i1.x, y1, i1.y], [i0.x, y1, i0.y]], [N0, N1, N1, N0], 0)
@@ -138,7 +158,11 @@ enum DozerModel {
             SCNGeometryElement(data: g.withUnsafeBufferPointer { Data(buffer: $0) }, primitiveType: .triangles,
                                primitiveCount: g.count / 3, bytesPerIndex: 4)
         }
-        let geo = SCNGeometry(sources: [vs, nsrc], elements: els)
+        let uvData = uvs.withUnsafeBufferPointer { Data(buffer: $0) }
+        let uvsrc = SCNGeometrySource(data: uvData, semantic: .texcoord, vectorCount: uvs.count, usesFloatComponents: true,
+                                      componentsPerVector: 2, bytesPerComponent: 4, dataOffset: 0,
+                                      dataStride: MemoryLayout<SIMD2<Float>>.stride)
+        let geo = SCNGeometry(sources: [vs, nsrc, uvsrc], elements: els)
         geo.materials = [inner, outer, top]
         return SCNNode(geometry: geo)
     }
@@ -200,10 +224,10 @@ enum DozerModel {
         }
         // hard hat
         let hat = SCNSphere(radius: 0.145)
-        let hn = part(hat, yellow, [0, 0.5, 0.02], in: d)
+        let hn = part(hat, machineYellow, [0, 0.5, 0.02], in: d)
         hn.simdScale = [1, 0.75, 1]
-        cyl(0.17, 0.02, yellow, [0, 0.47, 0.04], in: d)
-        box(0.03, 0.05, 0.22, yellowDark, [0, 0.6, 0.02], chamfer: 0.01, in: d)
+        cyl(0.17, 0.02, machineYellow, [0, 0.47, 0.04], in: d)
+        box(0.03, 0.05, 0.22, machineYellow, [0, 0.6, 0.02], chamfer: 0.01, in: d)
     }
 
     static func exhaust(_ n: SCNNode, at p: SIMD3<Float>, chrome: Bool) -> SIMD3<Float> {
@@ -218,7 +242,8 @@ enum DozerModel {
 
     // MARK: Levels
 
-    static func build(level: Int) -> Built {
+    /// `flat`: a straight blade with angled ends (the quarry dozers) instead of the curved claw (the mine dozers).
+    static func build(level: Int, flat: Bool = false) -> Built {
         let root = SCNNode()
         let m = SCNNode()
         root.addChildNode(m)
@@ -230,15 +255,15 @@ enum DozerModel {
         let trackLen: Float = level >= 3 ? 1.5 : 1.4
         tracks(m, len: trackLen, x: 0.47, wheels: level >= 3 ? 5 : 4)
 
-        // body + engine block (the tall yellow block behind the seat)
-        box(0.72, 0.2, trackLen - 0.15, yellow, [0, 0.42, 0], chamfer: 0.05, in: m)
+        // body + engine block (the tall block behind the seat)
+        box(0.72, 0.2, trackLen - 0.15, paint, [0, 0.42, 0], chamfer: 0.05, in: m)
         if enclosed {
-            box(0.7, 0.42, 0.6, yellow, [0, 0.72, -0.42], chamfer: 0.1, in: m)
-            box(0.55, 0.1, 0.5, yellowDark, [0, 0.98, -0.42], chamfer: 0.04, in: m)
+            box(0.7, 0.42, 0.6, paint, [0, 0.72, -0.42], chamfer: 0.1, in: m)
+            box(0.55, 0.1, 0.5, paintDark, [0, 0.98, -0.42], chamfer: 0.04, in: m)
         } else {
-            box(0.5, 0.62, 0.34, yellow, [0, 0.8, -0.48], chamfer: 0.14, in: m)
+            box(0.5, 0.62, 0.34, paint, [0, 0.8, -0.48], chamfer: 0.14, in: m)
         }
-        box(0.4, 0.16, 0.14, yellow, [0, 0.6, 0.3], chamfer: 0.04, in: m)               // dash
+        box(0.4, 0.16, 0.14, paint, [0, 0.6, 0.3], chamfer: 0.04, in: m)               // dash
         for sx in [-1, 1] as [Float] {                                                   // levers
             cyl(0.012, 0.16, black, [sx * 0.08, 0.72, 0.28], rot: [0.4, 0, 0], in: m)
             ball(0.025, black, [sx * 0.08, 0.8, 0.31], in: m)
@@ -250,10 +275,10 @@ enum DozerModel {
         if enclosed {
             // cab: pillars, roof and tinted windows
             for (x, z) in [(-0.3, 0.12), (0.3, 0.12), (-0.3, -0.3), (0.3, -0.3)] as [(Float, Float)] {
-                box(0.06, 0.72, 0.06, yellow, [x, 0.9, z], chamfer: 0.02, in: m)
+                box(0.06, 0.72, 0.06, paint, [x, 0.9, z], chamfer: 0.02, in: m)
             }
-            box(0.7, 0.07, 0.55, yellow, [0, 1.28, -0.09], chamfer: 0.03, in: m)
-            box(0.56, 0.06, 0.08, yellowDark, [0, 1.33, 0.12], chamfer: 0.02, in: m)
+            box(0.7, 0.07, 0.55, paint, [0, 1.28, -0.09], chamfer: 0.03, in: m)
+            box(0.56, 0.06, 0.08, paintDark, [0, 1.33, 0.12], chamfer: 0.02, in: m)
             box(0.56, 0.5, 0.02, glass, [0, 0.98, 0.12], chamfer: 0, in: m)
             for sx in [-1, 1] as [Float] { box(0.02, 0.5, 0.4, glass, [sx * 0.3, 0.98, -0.09], chamfer: 0, in: m) }
         }
@@ -269,18 +294,26 @@ enum DozerModel {
         // Plow
         var plow: [SIMD2<Float>]
         let height: Float, thick: Float
-        switch level {
-        case 0: plow = arc(cz: 1.55, r: 0.62, spanDeg: 115); height = 0.45; thick = 0.06
-        case 1: plow = arc(cz: 1.45, r: 0.85, spanDeg: 100); height = 0.55; thick = 0.1
-        case 2: plow = [[-1.05, 1.4], [-0.86, 1.0], [0, 1.0], [0.86, 1.0], [1.05, 1.4]]; height = 0.55; thick = 0.1
-        case 3: plow = [[-1.12, 1.35], [-0.95, 1.0], [0, 1.0], [0.95, 1.0], [1.12, 1.35]]; height = 0.72; thick = 0.14
-        case 4: plow = arc(cz: 2.1, r: 1.25, spanDeg: 78); height = 0.6; thick = 0.1
-        default: plow = arc(cz: 1.95, r: 1.15, spanDeg: 100); height = 0.82; thick = 0.14
+        let L = min(level, 5)
+        height = [0.45, 0.55, 0.55, 0.72, 0.6, 0.82][L]
+        thick = [0.06, 0.1, 0.1, 0.14, 0.1, 0.14][L]
+        if flat {
+            let w: Float = [0.62, 0.74, 0.86, 0.95, 1.0, 1.05][L]
+            plow = [[-w * 1.22, 1.38], [-w, 1.0], [0, 1.0], [w, 1.0], [w * 1.22, 1.38]]
+        } else {
+            switch L {
+            case 0: plow = arc(cz: 1.55, r: 0.62, spanDeg: 115)
+            case 1: plow = arc(cz: 1.45, r: 0.85, spanDeg: 100)
+            case 2: plow = arc(cz: 1.5, r: 0.95, spanDeg: 105)
+            case 3: plow = arc(cz: 1.6, r: 1.05, spanDeg: 105)
+            case 4: plow = arc(cz: 2.1, r: 1.25, spanDeg: 78)
+            default: plow = arc(cz: 1.95, r: 1.15, spanDeg: 100)
+            }
         }
         let y0: Float = 0.04
         let innerMat = level == 1 ? plowMats[1] : plowMats[2]
         m.addChildNode(extrude(plow, y0: y0, y1: y0 + height, thick: thick, inner: innerMat, outer: plowMats[0], top: plowMats[0]))
-        // yellow rims top and bottom
+        // painted rims top and bottom
         m.addChildNode(extrude(plow, y0: y0 + height - 0.06, y1: y0 + height + 0.02, thick: thick + 0.05,
                                inner: plowMats[0], outer: plowMats[0], top: plowMats[0]))
         m.addChildNode(extrude(plow, y0: y0, y1: y0 + 0.07, thick: thick + 0.05,
@@ -289,10 +322,10 @@ enum DozerModel {
         let back = plow.min { $0.y < $1.y }!.y
         // arms from the chassis to the back of the plow
         for sx in [-1, 1] as [Float] {
-            beam([sx * 0.28, 0.4, 0.55], [sx * 0.26, y0 + height * 0.5, back - thick / 2], 0.09, yellow, in: m)
+            beam([sx * 0.28, 0.4, 0.55], [sx * 0.26, y0 + height * 0.5, back - thick / 2], 0.09, paint, in: m)
             if level >= 3 {   // hydraulic rams
                 beam([sx * 0.36, 0.95, 0.05], [sx * 0.34, y0 + height * 0.75, back - thick / 2], 0.07, steel, round: true, in: m)
-                beam([sx * 0.36, 0.95, 0.05], [sx * 0.35, 0.86, 0.45], 0.1, yellow, round: true, in: m)
+                beam([sx * 0.36, 0.95, 0.05], [sx * 0.35, 0.86, 0.45], 0.1, paint, round: true, in: m)
             }
         }
 
@@ -325,17 +358,23 @@ enum DozerModel {
             for a in [0.7, -0.7] as [Float] {   // X brace on the back
                 box(0.7, 0.05, 0.04, plowMats[1], [0, y0 + height / 2, back - thick / 2 - 0.03], chamfer: 0.01, rot: [0, 0, a], in: m)
             }
-        case 2:
+        case 2 where flat:
             // grille on top + teeth + face plates
             for (p, _) in samples(Array(plow[1...3]), spacing: 0.12) {
                 cyl(0.018, 0.28, steel, [p.x, y0 + height + 0.14, p.y], in: m)
             }
-            box(1.72, 0.05, 0.05, steel, [0, y0 + height + 0.28, 1.0], chamfer: 0.01, in: m)
+            box(plow[3].x * 2, 0.05, 0.05, steel, [0, y0 + height + 0.28, 1.0], chamfer: 0.01, in: m)
             teeth(spacing: 0.3, size: 0.12)
             for x in [-0.55, 0, 0.55] as [Float] { box(0.4, 0.25, 0.02, steel, [x, y0 + 0.2, 1.07], chamfer: 0.01, in: m) }
-        case 3:
+        case 3 where flat:
             teeth(spacing: 0.32, size: 0.18)
             for x in [-0.6, 0, 0.6] as [Float] { box(0.1, height, 0.08, steel, [x, y0 + height / 2, 1.1], chamfer: 0.02, in: m) }
+            rivets(rows: [y0 + height - 0.12], spacing: 0.3)
+        case 2:
+            teeth(spacing: 0.26, size: 0.12)
+            rivets(rows: [y0 + 0.12, y0 + height - 0.12], spacing: 0.25)
+        case 3:
+            teeth(spacing: 0.28, size: 0.16)
             rivets(rows: [y0 + height - 0.12], spacing: 0.3)
         case 4:
             teeth(spacing: 0.22, size: 0.13)
