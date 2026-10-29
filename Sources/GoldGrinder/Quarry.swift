@@ -116,12 +116,12 @@ extension Game {
                     mouth: max(1.05, Quarry.sizes[Quarry.laterRounds[i].blocks.max()!] + 0.55), need: Quarry.firstRound[i].need)
         }
 
-        // floor: red sandstone slabs in the rooms, red sand all around
+        // floor: tan stone slabs in the rooms, brown dirt all around
         let sand = floorShape(CGRect(x: Quarry.dx - 60, y: -40, width: 120, height: 140), holes: [],
-                              mat: floorMat((0.22, 0.08, 0.06), seed: 5, repeats: 24))
+                              mat: floorMat((0.36, 0.28, 0.18), seed: 5, repeats: 24))
         sand.position = v3(0, -0.03, 0)
         scene.rootNode.addChildNode(sand)
-        let slabs = Art.cobbleImage(seed: 7, stone: (0.46, 0.19, 0.14), grout: (0.2, 0.07, 0.05), count: 5)
+        let slabs = Art.cobbleImage(seed: 7, stone: (0.62, 0.53, 0.4), grout: (0.3, 0.24, 0.16), count: 5)
         for r in q.rects {
             let mat = Art.pbr(slabs, rough: 0.85)
             mat.diffuse.wrapS = .repeat; mat.diffuse.wrapT = .repeat
@@ -134,22 +134,22 @@ extension Game {
             scene.rootNode.addChildNode(floorShape(r, holes: [], mat: mat))
         }
 
-        // red sandstone rock spires instead of crystals
+        // brown rock spires instead of crystals
         let mats: [SCNMaterial] = [
-            Art.pbr(rgb(0.72, 0.36, 0.18), rough: 0.85, emit: rgb(0.08, 0.03, 0.01)),
-            Art.pbr(rgb(0.86, 0.56, 0.32), rough: 0.8, emit: rgb(0.1, 0.05, 0.02)),
-            Art.pbr(rgb(0.55, 0.24, 0.12), rough: 0.9, emit: rgb(0.05, 0.02, 0.0)),
-            Art.pbr(rgb(0.93, 0.7, 0.45), rough: 0.8, emit: rgb(0.12, 0.07, 0.03)),
+            Art.pbr(rgb(0.58, 0.44, 0.3), rough: 0.85, emit: rgb(0.06, 0.04, 0.02)),
+            Art.pbr(rgb(0.72, 0.6, 0.44), rough: 0.8, emit: rgb(0.08, 0.06, 0.03)),
+            Art.pbr(rgb(0.44, 0.33, 0.22), rough: 0.9, emit: rgb(0.04, 0.03, 0.01)),
+            Art.pbr(rgb(0.82, 0.72, 0.56), rough: 0.8, emit: rgb(0.1, 0.08, 0.04)),
         ]
         buildWalls(rects: q.rects, gates: q.gates, openings: q.crushers.map { $0.y }, openingHalf: 1.9,
-                   mats: mats, rockMat: Art.pbr(rgb(0.42, 0.24, 0.13), rough: 0.9), seed: 77)
+                   mats: mats, rockMat: Art.pbr(rgb(0.36, 0.28, 0.2), rough: 0.9), seed: 77)
         buildGates(q.gates, cap: rgb(0.15, 0.55, 0.6))
         for c in q.crushers { buildCrusher(c) }
 
         q.dust.addParticleSystem(Art.particles(color: rgb(0.9, 0.72, 0.45), size: 0.35, life: 1.0, speed: 1.6,
                                                spread: 60, gravity: 0.6, additive: false))
         scene.rootNode.addChildNode(q.dust)
-        let gold = Art.pbr(rgb(1, 0.8, 0.14), metal: 0.8, rough: 0.35, emit: rgb(0.38, 0.25, 0.0))
+        let gold = Art.pbr(rgb(1, 0.7, 0.12), metal: 0.8, rough: 0.35, emit: rgb(0.38, 0.21, 0.0))
         q.nugget = (0..<5).map { k in
             let g = Art.nugget(seed: UInt64(31 + k * 7))
             g.materials = [gold]
@@ -286,14 +286,14 @@ extension Game {
         applyStageLook()
     }
 
-    /// Colours that differ between the warm desert and the purple mines.
+    /// Colours that differ between the desert quarry, the vault and the green mines.
     func applyStageLook() {
         let desert = stage == .quarry, vault = stage == .intro
-        let bg = vault ? rgb(0.03, 0.05, 0.1) : desert ? rgb(0.13, 0.08, 0.05) : rgb(0.05, 0.03, 0.08)
+        let bg = vault ? rgb(0.07, 0.07, 0.07) : desert ? rgb(0.14, 0.11, 0.08) : rgb(0.08, 0.06, 0.04)
         scene.background.contents = bg
         view?.backgroundColor = bg
-        ambient.color = vault ? rgb(0.75, 0.82, 1) : desert ? rgb(1, 0.82, 0.62) : rgb(0.7, 0.6, 0.95)
-        ambient.intensity = desert || vault ? 380 : 320
+        ambient.color = vault ? rgb(0.95, 0.95, 0.95) : desert ? rgb(1, 0.95, 0.88) : rgb(1, 0.95, 0.88)
+        ambient.intensity = desert || vault ? 500 : 450
         let goal = vault ? "fill the button, then crush the gold" : desert ? "push the gold into the crusher" : "pile gold on the buttons"
         #if os(iOS)
         hud.hint.text = "▲▼ drive · ◀ ▶ turn · " + goal

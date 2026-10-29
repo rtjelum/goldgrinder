@@ -23,18 +23,18 @@ enum DozerModel {
 
     // worn-out paint and dull, dirty steel, about half covered in rust
     static func worn(_ c: (CGFloat, CGFloat, CGFloat), seed: UInt64, metal: CGFloat, rough: CGFloat) -> SCNMaterial {
-        let m = Art.pbr(Art.wornPaint(c, seed: seed, rust: 0.5), metal: metal, rough: rough)
+        let m = Art.pbr(Art.wornPaint(c, seed: seed, rust: 0.15), metal: metal, rough: rough)
         m.diffuse.wrapS = .repeat; m.diffuse.wrapT = .repeat
         m.diffuse.mipFilter = .linear
         return m
     }
-    static let paint = worn((0.18, 0.4, 0.8), seed: 11, metal: 0.1, rough: 0.75)       // worn blue
-    static let paintDark = worn((0.11, 0.27, 0.6), seed: 12, metal: 0.15, rough: 0.78)
-    static let machineYellow = worn((0.93, 0.68, 0.14), seed: 14, metal: 0.1, rough: 0.75)   // hard hat, crushers
+    static let paint = worn((0.12, 0.48, 1.0), seed: 11, metal: 0.1, rough: 0.75)       // worn blue
+    static let paintDark = worn((0.08, 0.32, 0.78), seed: 12, metal: 0.15, rough: 0.78)
+    static let machineYellow = worn((1.0, 0.76, 0.08), seed: 14, metal: 0.1, rough: 0.75)   // hard hat, crushers
     static let steel = worn((0.58, 0.58, 0.6), seed: 13, metal: 0.5, rough: 0.65)
     static let rubber = Art.pbr(rgb(0.13, 0.13, 0.15), rough: 0.85)
     static let wheel = Art.pbr(rgb(0.5, 0.52, 0.56), metal: 0.6, rough: 0.4)
-    static let zombie = Art.pbr(rgb(0.48, 0.8, 0.3), rough: 0.6)
+    static let zombie = Art.pbr(rgb(0.45, 0.92, 0.25), rough: 0.6)
     static let black = Art.pbr(rgb(0.04, 0.04, 0.05), rough: 0.3)
     static let blueGrey = Art.pbr(rgb(0.28, 0.36, 0.58), metal: 0.5, rough: 0.4)
     static let lamp = Art.pbr(SKColor.white, emit: rgb(1.8, 1.5, 0.9))

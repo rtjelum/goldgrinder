@@ -174,8 +174,8 @@ enum Art {
     }
 
     static func goldColor(_ v: Float) -> SIMD3<Float> {
-        // deep gold in the recesses, bright yellow gold on the raised parts
-        let lo = SIMD3<Float>(0.92, 0.68, 0.06), hi = SIMD3<Float>(1.0, 0.92, 0.42)   // bright gold
+        // deep warm gold in the recesses, bright yellow gold on the raised parts
+        let lo = SIMD3<Float>(0.92, 0.56, 0.05), hi = SIMD3<Float>(1.0, 0.86, 0.36)   // warm gold
         return simd_mix(lo, hi, SIMD3<Float>(repeating: min(1, max(0, v))))
     }
 
@@ -207,7 +207,7 @@ enum Art {
     static let coinGeo: SCNGeometry = {
         let g = SCNCylinder(radius: coinRadius, height: coinThick)
         g.radialSegmentCount = 12
-        let side = pbr(rgb(1, 0.78, 0.12), metal: 0.75, rough: 0.3, emit: rgb(0.35, 0.24, 0.0))
+        let side = pbr(rgb(1, 0.68, 0.1), metal: 0.75, rough: 0.3, emit: rgb(0.35, 0.2, 0.0))
         let face = coinMat.copy() as! SCNMaterial
         for p in [face.diffuse, face.emission] {
             // SCNCylinder caps map the whole texture onto the disc; ours has the edge at 0.47
@@ -384,7 +384,7 @@ enum Art {
     }
 
     static func lockIcon(_ ctx: CGContext, in rect: CGRect) {
-        let white = CGColor(red: 0.95, green: 0.92, blue: 1, alpha: 1)
+        let white = CGColor(red: 0.95, green: 0.95, blue: 0.95, alpha: 1)
         let body = CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height * 0.6)
         ctx.addPath(CGPath(roundedRect: body, cornerWidth: 10, cornerHeight: 10, transform: nil))
         ctx.setFillColor(white); ctx.fillPath()
@@ -392,7 +392,7 @@ enum Art {
         let r = rect.width * 0.3
         ctx.addArc(center: CGPoint(x: rect.midX, y: body.maxY), radius: r, startAngle: 0, endAngle: .pi, clockwise: false)
         ctx.strokePath()
-        ctx.setFillColor(CGColor(red: 0.22, green: 0.14, blue: 0.3, alpha: 1))
+        ctx.setFillColor(CGColor(red: 0.07, green: 0.15, blue: 0.3, alpha: 1))
         ctx.fillEllipse(in: CGRect(x: rect.midX - 9, y: body.midY - 9, width: 18, height: 18))
     }
 
@@ -403,7 +403,7 @@ enum Art {
         let rect = CGRect(x: 6, y: 6, width: w - 12, height: h - 12)
         let path = CGPath(roundedRect: rect, cornerWidth: 40, cornerHeight: 40, transform: nil)
         ctx.addPath(path)
-        ctx.setFillColor(full ? CGColor(red: 0.55, green: 0.32, blue: 0.05, alpha: 0.95) : CGColor(red: 0.2, green: 0.12, blue: 0.3, alpha: 0.92))
+        ctx.setFillColor(full ? CGColor(red: 0.55, green: 0.32, blue: 0.05, alpha: 0.95) : CGColor(red: 0.07, green: 0.15, blue: 0.3, alpha: 0.92))
         ctx.fillPath()
         ctx.addPath(path); ctx.setStrokeColor(CGColor(red: 1, green: 0.78, blue: 0.25, alpha: 1)); ctx.setLineWidth(8); ctx.strokePath()
         if let icon = icon {
@@ -417,14 +417,14 @@ enum Art {
         text(ctx, title, size: 34, color: CGColor(red: 1, green: 0.82, blue: 0.4, alpha: 1), at: CGPoint(x: 300, y: 150))
         coinIcon(ctx, at: CGPoint(x: 196, y: 70), r: 22)
         text(ctx, "\(have)/\(need)", size: 56,
-             color: CGColor(red: 0.97, green: 0.95, blue: 1, alpha: 1), at: CGPoint(x: 226, y: 70), center: false, maxWidth: 196)
+             color: CGColor(red: 0.97, green: 0.97, blue: 0.97, alpha: 1), at: CGPoint(x: 226, y: 70), center: false, maxWidth: 196)
         return ctx.makeImage()!
     }
 
     /// Gold trophy cup for the victory button.
     static let trophyImage: CGImage = {
         let ctx = context(200, 200)
-        let gold = CGColor(red: 1, green: 0.78, blue: 0.2, alpha: 1), dark = CGColor(red: 0.75, green: 0.48, blue: 0.05, alpha: 1)
+        let gold = CGColor(red: 1, green: 0.7, blue: 0.16, alpha: 1), dark = CGColor(red: 0.74, green: 0.4, blue: 0.05, alpha: 1)
         ctx.setLineWidth(14); ctx.setStrokeColor(dark)
         ctx.strokeEllipse(in: CGRect(x: 18, y: 100, width: 60, height: 60))     // handles
         ctx.strokeEllipse(in: CGRect(x: 122, y: 100, width: 60, height: 60))
@@ -459,18 +459,18 @@ enum Art {
         let ctx = context(w, h)
         let rect = CGRect(x: 6, y: 6, width: w - 12, height: h - 12)
         let path = CGPath(roundedRect: rect, cornerWidth: 36, cornerHeight: 36, transform: nil)
-        ctx.addPath(path); ctx.setFillColor(CGColor(red: 0.2, green: 0.12, blue: 0.3, alpha: 0.92)); ctx.fillPath()
+        ctx.addPath(path); ctx.setFillColor(CGColor(red: 0.07, green: 0.15, blue: 0.3, alpha: 0.92)); ctx.fillPath()
         ctx.addPath(path); ctx.setStrokeColor(CGColor(red: 1, green: 0.78, blue: 0.25, alpha: 1)); ctx.setLineWidth(8); ctx.strokePath()
         text(ctx, "GOLD LEFT", size: 34, color: CGColor(red: 1, green: 0.82, blue: 0.4, alpha: 1), at: CGPoint(x: 200, y: 145))
         if left > 0 {
             coinIcon(ctx, at: CGPoint(x: 110, y: 72), r: 30)
-            text(ctx, "\(left)", size: 70, color: CGColor(red: 0.97, green: 0.95, blue: 1, alpha: 1), at: CGPoint(x: 152, y: 72), center: false, maxWidth: 220)
+            text(ctx, "\(left)", size: 70, color: CGColor(red: 0.97, green: 0.97, blue: 0.97, alpha: 1), at: CGPoint(x: 152, y: 72), center: false, maxWidth: 220)
         } else {
             text(ctx, "EMPTY", size: 70, color: CGColor(red: 1, green: 0.4, blue: 0.4, alpha: 1), at: CGPoint(x: 200, y: 72))
         }
         // how full the belt still is
         let bar = CGRect(x: 30, y: 22, width: 340, height: 12)
-        ctx.setFillColor(CGColor(red: 0.08, green: 0.05, blue: 0.12, alpha: 1)); ctx.fill(bar)
+        ctx.setFillColor(CGColor(red: 0.04, green: 0.07, blue: 0.12, alpha: 1)); ctx.fill(bar)
         ctx.setFillColor(CGColor(red: 1, green: 0.78, blue: 0.2, alpha: 1))
         ctx.fill(CGRect(x: bar.minX, y: bar.minY, width: bar.width * CGFloat(left) / CGFloat(max(1, total)), height: bar.height))
         return ctx.makeImage()!
@@ -481,7 +481,7 @@ enum Art {
         let w = 512, h = 160
         let ctx = context(w, h)
         let c = CGPoint(x: CGFloat(w) / 2, y: CGFloat(h) / 2)
-        let dark = CGColor(red: 0.12, green: 0.05, blue: 0.08, alpha: 0.9)
+        let dark = CGColor(red: 0.05, green: 0.07, blue: 0.1, alpha: 0.9)
         for k in 0..<12 {   // outline: the word drawn dark all around
             let a = CGFloat(k) / 12 * 2 * .pi
             text(ctx, word, size: 96, color: dark, at: CGPoint(x: c.x + cos(a) * 7, y: c.y + sin(a) * 7), maxWidth: CGFloat(w) - 40)
@@ -500,7 +500,7 @@ enum Art {
         let r0 = half * inner, r1 = half * 0.97
         let mid = (r0 + r1) / 2, width = r1 - r0
         ctx.setLineWidth(width)
-        ctx.setStrokeColor(CGColor(red: 0.08, green: 0.05, blue: 0.12, alpha: 0.85))
+        ctx.setStrokeColor(CGColor(red: 0.04, green: 0.07, blue: 0.12, alpha: 0.85))
         ctx.addArc(center: c, radius: mid, startAngle: 0, endAngle: 2 * .pi, clockwise: false)
         ctx.strokePath()
         if progress > 0 {
@@ -533,15 +533,15 @@ enum Art {
             let x = CGFloat.random(in: 0...512, using: &rng), y = CGFloat.random(in: 0...512, using: &rng)
             let r = CGFloat.random(in: 2...12, using: &rng)
             let k = CGFloat.random(in: -0.05...0.04, using: &rng)
-            ctx.setFillColor(CGColor(red: base.0 + k, green: base.1 + k, blue: base.2 + k * 1.2, alpha: 0.7))
+            ctx.setFillColor(CGColor(red: base.0 + k, green: base.1 + k, blue: base.2 + k, alpha: 0.7))
             ctx.fillEllipse(in: CGRect(x: x, y: y, width: r * 1.5, height: r))
         }
         return ctx.makeImage()!
     }
 
     /// Tileable cobblestones: rounded stones of varied colour, lit from the upper left, in dark grout.
-    static func cobbleImage(seed: UInt64, stone: (CGFloat, CGFloat, CGFloat) = (0.42, 0.38, 0.45),
-                            grout: (CGFloat, CGFloat, CGFloat) = (0.22, 0.19, 0.24), count: Int = 6) -> CGImage {
+    static func cobbleImage(seed: UInt64, stone: (CGFloat, CGFloat, CGFloat) = (0.5, 0.46, 0.4),
+                            grout: (CGFloat, CGFloat, CGFloat) = (0.22, 0.2, 0.17), count: Int = 6) -> CGImage {
         var rng = SeededRNG(s: seed)
         func r(_ a: CGFloat, _ b: CGFloat) -> CGFloat { CGFloat.random(in: a...b, using: &rng) }
         let s: CGFloat = 512, n = count
@@ -573,20 +573,20 @@ enum Art {
                     return p
                 }
                 let tone = r(-0.06, 0.05)
-                let base = (stone.0 + tone + r(-0.03, 0.03), stone.1 + tone + r(-0.02, 0.02), stone.2 + tone + r(-0.03, 0.03))
+                let base = (stone.0 + tone + r(-0.012, 0.012), stone.1 + tone + r(-0.01, 0.01), stone.2 + tone + r(-0.012, 0.012))
                 // draw at the wrap-around copies too so the tile repeats seamlessly
                 for ox in [-s, 0, s] {
                     for oy in [-s, 0, s] {
                         let x = cx + ox, y = cy + oy
                         guard x > -cell, x < s + cell, y > -cell, y < s + cell else { continue }
                         ctx.addPath(outline(1, x + 2, y - 3))       // shadow side
-                        ctx.setFillColor(CGColor(red: 0.12, green: 0.1, blue: 0.14, alpha: 0.6)); ctx.fillPath()
+                        ctx.setFillColor(CGColor(red: 0.12, green: 0.09, blue: 0.06, alpha: 0.6)); ctx.fillPath()
                         ctx.addPath(outline(1, x, y))
-                        ctx.setFillColor(CGColor(red: base.0 * 0.85, green: base.1 * 0.85, blue: base.2 * 0.87, alpha: 1)); ctx.fillPath()
+                        ctx.setFillColor(CGColor(red: base.0 * 0.85, green: base.1 * 0.85, blue: base.2 * 0.85, alpha: 1)); ctx.fillPath()
                         ctx.addPath(outline(0.86, x - 2, y + 2.5))  // lit top
                         ctx.setFillColor(CGColor(red: base.0, green: base.1, blue: base.2, alpha: 1)); ctx.fillPath()
                         ctx.addPath(outline(0.45, x - 5, y + 6))    // soft shine
-                        ctx.setFillColor(CGColor(red: 1, green: 0.95, blue: 1, alpha: 0.07)); ctx.fillPath()
+                        ctx.setFillColor(CGColor(red: 1, green: 0.97, blue: 0.9, alpha: 0.07)); ctx.fillPath()
                     }
                 }
             }
@@ -595,8 +595,8 @@ enum Art {
         for _ in 0..<1400 {
             let x = r(0, s), y = r(0, s), rr = r(0.6, 2.2)
             let dark = r(0, 1) < 0.6
-            ctx.setFillColor(dark ? CGColor(red: 0.12, green: 0.1, blue: 0.14, alpha: r(0.15, 0.4))
-                                  : CGColor(red: 0.8, green: 0.75, blue: 0.82, alpha: r(0.08, 0.2)))
+            ctx.setFillColor(dark ? CGColor(red: 0.12, green: 0.09, blue: 0.06, alpha: r(0.08, 0.22))
+                                  : CGColor(red: 0.85, green: 0.8, blue: 0.7, alpha: r(0.08, 0.2)))
             ctx.fillEllipse(in: CGRect(x: x, y: y, width: rr, height: rr))
         }
         return ctx.makeImage()!
@@ -620,7 +620,7 @@ enum Art {
         // grime, heavier towards the bottom
         for _ in 0..<40 {
             let y = s * pow(r(0, 1), 2.2), x = r(0, s), rr = r(4, 20)
-            ctx.setFillColor(CGColor(red: 0.35, green: 0.26, blue: 0.16, alpha: r(0.05, 0.14)))
+            ctx.setFillColor(CGColor(red: 0.35, green: 0.26, blue: 0.16, alpha: r(0.03, 0.08)))
             ctx.fillEllipse(in: CGRect(x: x - rr, y: y - rr * 0.6, width: 2 * rr, height: 1.2 * rr))
         }
         // rust patches: big merged clusters of mottled rust, fading into a brown stain at the edges,
@@ -629,7 +629,7 @@ enum Art {
         let clusters = Int(rust * 10)
         if rust > 0 {
             // overall tired, brownish paint
-            ctx.setFillColor(CGColor(red: 0.45, green: 0.3, blue: 0.15, alpha: rust * 0.35))
+            ctx.setFillColor(CGColor(red: 0.45, green: 0.3, blue: 0.15, alpha: rust * 0.2))
             ctx.fill(CGRect(x: 0, y: 0, width: s, height: s))
         }
         for _ in 0..<clusters {

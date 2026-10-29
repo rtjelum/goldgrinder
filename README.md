@@ -16,11 +16,12 @@ Inspired by "Idle Zombie Miner" ads.
 
 Every new game starts with a taste of power: the biggest dozer with a flat blade, in a huge blue crystal
 vault with a mountain of gold coins on one side. Plough 400 coins across into the **OPEN GATE** button to open the
-gate, then push 50 gold lumps in the next room onto the crusher's belt. Then it's on to the quarry, in dozer 1.
+gate, then push 50 gold lumps in the next room onto the crusher's belt. Leftover coins pushed onto the belt
+go in too: every 10 coins count as 1 gold. Then it's on to the quarry, in dozer 1.
 
 ### The quarry (up top)
 
-The game starts in a desert quarry above the mines: four red sandstone rooms laid out like the mines.
+The game starts in a desert quarry above the mines: four tan stone rooms laid out like the mines.
 
 - Push the big **gold blocks** onto the **feeder belt** in the floor by the room's left wall. The belt carries them
   into the **crusher** set in the wall, which grinds them into coins that ride a conveyor out the back
@@ -38,7 +39,7 @@ The game starts in a desert quarry above the mines: four red sandstone rooms lai
 - Each mine is fed by a **conveyor belt** outside its wall. Random little piles of coins ride out of a hopper,
   and at the end of the belt the coins fly through a gap in the crystal wall and scatter across the mine floor.
   The belt slows down as it empties and finally runs dry. It is the only gold in the mine.
-- Push coins into a **button**, a glowing well sunk into the floor (orange: next dozer, purple: gate, yellow: victory).
+- Push coins into a **button**, a glowing well sunk into the floor (orange: next dozer, blue: gate, yellow: victory).
   The ring around it fills up as coins pile on. Push coins off again and it goes down.
   The counters at the top show how many coins are on the nearest button and how many it needs.
 - When the pile reaches the price, it **melts** into the button:

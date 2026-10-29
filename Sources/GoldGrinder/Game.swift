@@ -101,7 +101,7 @@ final class Tag {
     let signMat = SCNMaterial()
     let labelMat = SCNMaterial()   // the word on the button's plate
     let blob = SCNNode()
-    let blobMat = Art.pbr(rgb(1, 0.62, 0.12), metal: 0.7, rough: 0.2, emit: rgb(1.0, 0.45, 0.05))
+    let blobMat = Art.pbr(rgb(1, 0.56, 0.1), metal: 0.7, rough: 0.2, emit: rgb(1.0, 0.4, 0.04))
     init(kind: TagKind, pos: CGPoint, area: Int, price: Double) {
         self.kind = kind; self.pos = pos; self.area = area; self.price = price; basePrice = price
     }
@@ -253,7 +253,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         view.delegate = self
         view.overlaySKScene = hud
         view.antialiasingMode = .multisampling4X
-        view.backgroundColor = rgb(0.05, 0.03, 0.08)
+        view.backgroundColor = rgb(0.08, 0.06, 0.04)
         view.preferredFramesPerSecond = 60
         view.isPlaying = true
         view.loops = true
@@ -293,8 +293,10 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         cam.bloomIntensity = 0.6
         cam.bloomThreshold = 0.9
         cam.bloomBlurRadius = 10
-        cam.vignettingIntensity = 0.6
+        cam.vignettingIntensity = 0.25
         cam.vignettingPower = 1.0
+        cam.saturation = 1.15       // punchy, cartoon colours
+        cam.contrast = 0.12
         camNode.camera = cam
         scene.rootNode.addChildNode(rig)
         rig.addChildNode(camNode)
@@ -304,17 +306,17 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     }
 
     func buildLighting() {
-        scene.background.contents = rgb(0.05, 0.03, 0.08)
+        scene.background.contents = rgb(0.08, 0.06, 0.04)
         scene.lightingEnvironment.contents = Art.environmentImage()
-        scene.lightingEnvironment.intensity = 1.3
+        scene.lightingEnvironment.intensity = 1.6
 
         let sun = SCNLight()
         sun.type = .directional
-        sun.intensity = 1700
-        sun.color = rgb(1, 0.93, 0.85)
+        sun.intensity = 2000
+        sun.color = rgb(1, 0.97, 0.9)
         sun.castsShadow = true
         sun.shadowMapSize = CGSize(width: 2048, height: 2048)
-        sun.shadowColor = SKColor(white: 0, alpha: 0.5)
+        sun.shadowColor = SKColor(red: 0.1, green: 0.06, blue: 0.02, alpha: 0.5)
         sun.shadowSampleCount = 8
         sun.shadowRadius = 2
         sun.automaticallyAdjustsShadowProjection = true
@@ -325,8 +327,8 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         scene.rootNode.addChildNode(sunNode)
 
         ambient.type = .ambient
-        ambient.intensity = 320
-        ambient.color = rgb(0.7, 0.6, 0.95)
+        ambient.intensity = 450
+        ambient.color = rgb(1, 0.95, 0.88)
         let ambNode = SCNNode()
         ambNode.light = ambient
         scene.rootNode.addChildNode(ambNode)
@@ -354,8 +356,8 @@ final class Game: NSObject, SCNSceneRendererDelegate {
 
     /// A well under a hole in the floor: dark stone walls going down to a floor, with a metal lip flush with the ground.
     func buildWell(_ p: CGPoint, _ r: CGFloat) {
-        let wallMat = Art.pbr(rgb(0.13, 0.09, 0.17), rough: 0.9)
-        let bottomMat = Art.pbr(rgb(0.1, 0.07, 0.13), rough: 0.9)
+        let wallMat = Art.pbr(rgb(0.12, 0.1, 0.08), rough: 0.9)
+        let bottomMat = Art.pbr(rgb(0.09, 0.07, 0.06), rough: 0.9)
         let lipMat = Art.pbr(rgb(0.55, 0.42, 0.25), metal: 0.9, rough: 0.3)
         let D = wellDepth
         let n = SCNNode()
@@ -395,11 +397,11 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     func buildFloor() {
         let holes = wells
         let on = floorShape(CGRect(x: -60, y: -40, width: 120, height: 140), holes: holes,
-                            mat: floorMat((0.16, 0.11, 0.2), seed: 1, repeats: 24))
+                            mat: floorMat((0.22, 0.16, 0.1), seed: 1, repeats: 24))
         on.position = v3(0, -0.03, 0)
         scene.rootNode.addChildNode(on)
         // mine floors: cobblestones, one texture tile (6 x 6 stones) per 4 units
-        let cobble = Art.cobbleImage(seed: 2)
+        let cobble = Art.cobbleImage(seed: 2, stone: (0.56, 0.45, 0.33), grout: (0.27, 0.2, 0.13))
         for a in areas {
             let inside = holes.filter { a.rect.contains($0.p) }
             let mat = Art.pbr(cobble, rough: 0.85)
@@ -418,17 +420,17 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         coins.wellDepth = Float(D)
     }
 
-    /// Sharp purple crystal walls. Their bases sit on the real collision edges, so what you see is what you hit.
-    /// The purple crystal walls of the mines.
+    /// Sharp crystal walls. Their bases sit on the real collision edges, so what you see is what you hit.
+    /// The dark green crystal walls of the mines.
     func buildMineWalls() {
         let mats: [SCNMaterial] = [
-            Art.pbr(rgb(0.36, 0.17, 0.62), metal: 0.15, rough: 0.22, emit: rgb(0.06, 0.01, 0.12)),
-            Art.pbr(rgb(0.55, 0.3, 0.88), metal: 0.1, rough: 0.18, emit: rgb(0.1, 0.03, 0.18)),
-            Art.pbr(rgb(0.26, 0.12, 0.45), metal: 0.2, rough: 0.3, emit: rgb(0.03, 0.0, 0.07)),
-            Art.pbr(rgb(0.72, 0.5, 1.0), metal: 0.05, rough: 0.15, emit: rgb(0.16, 0.06, 0.26)),
+            Art.pbr(rgb(0.05, 0.42, 0.22), metal: 0.15, rough: 0.22, emit: rgb(0.0, 0.08, 0.03)),
+            Art.pbr(rgb(0.12, 0.58, 0.32), metal: 0.1, rough: 0.18, emit: rgb(0.01, 0.12, 0.05)),
+            Art.pbr(rgb(0.03, 0.28, 0.14), metal: 0.2, rough: 0.3, emit: rgb(0.0, 0.05, 0.02)),
+            Art.pbr(rgb(0.28, 0.72, 0.46), metal: 0.05, rough: 0.15, emit: rgb(0.03, 0.16, 0.08)),
         ]
         buildWalls(rects: areas.map { $0.rect }, gates: gates, openings: areas.map { $0.beltStart.y }, openingHalf: 1.0,
-                   mats: mats, rockMat: Art.pbr(rgb(0.17, 0.11, 0.24), rough: 0.9), seed: 42)
+                   mats: mats, rockMat: Art.pbr(rgb(0.08, 0.2, 0.12), rough: 0.9), seed: 42)
     }
 
     /// Jagged walls around a row of rooms: tall at the back (left), low spikes at the front (right),
@@ -520,7 +522,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         scene.rootNode.addChildNode(container.flattenedClone())
     }
 
-    func buildGates(_ list: [Gate], cap: SKColor = rgb(0.75, 0.2, 0.35)) {
+    func buildGates(_ list: [Gate], cap: SKColor = rgb(0.1, 0.4, 0.2)) {
         let barMat = Art.pbr(rgb(0.55, 0.55, 0.65), metal: 0.9, rough: 0.3)
         let capMat = Art.pbr(cap, metal: 0.3, rough: 0.4)
         for g in list {
@@ -563,7 +565,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             // the glowing plate at the bottom of the well
             let disc = SCNCylinder(radius: R, height: 0.02); disc.radialSegmentCount = 64
             disc.materials = [t.discMat]
-            if case .gate = t.kind { t.discMat.diffuse.contents = rgb(0.7, 0.3, 0.95); t.discMat.emission.contents = rgb(0.3, 0.08, 0.45) }
+            if case .gate = t.kind { t.discMat.diffuse.contents = rgb(0.1, 0.3, 0.85); t.discMat.emission.contents = rgb(0.02, 0.1, 0.4) }
             if t.kind == .win { t.discMat.diffuse.contents = rgb(1, 0.85, 0.3); t.discMat.emission.contents = rgb(0.8, 0.5, 0.05) }
             t.disc.geometry = disc
             t.disc.position = v3(0, discY, 0)
@@ -649,7 +651,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     func buildBelts() {
         let frameMat = Game.beltFrameMat
         let railMat = Game.beltRailMat
-        let goldMat = Art.pbr(rgb(1, 0.8, 0.15), metal: 0.8, rough: 0.28, emit: rgb(0.4, 0.26, 0.0))
+        let goldMat = Art.pbr(rgb(1, 0.7, 0.12), metal: 0.8, rough: 0.28, emit: rgb(0.4, 0.22, 0.0))
         for (i, a) in areas.enumerated() {
             let b = Belt(area: i, a: a)
             belts.append(b)
@@ -775,7 +777,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     func buildEffects() {
         smoke.addParticleSystem(Art.particles(color: SKColor(white: 0.85, alpha: 0.6), size: 0.3, life: 0.9, speed: 0.8,
                                               spread: 20, gravity: 0.8, additive: false))
-        burst.addParticleSystem(Art.particles(color: rgb(1, 0.85, 0.35), size: 0.14, life: 0.8, speed: 4,
+        burst.addParticleSystem(Art.particles(color: rgb(1, 0.76, 0.28), size: 0.14, life: 0.8, speed: 4,
                                               spread: 80, gravity: -6, additive: true))
         for n in [smoke, burst] { scene.rootNode.addChildNode(n) }
     }
@@ -954,7 +956,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         prevHeading = heading
         if clock > 1.5 && warmUp.parent != nil {
             warmUp.removeFromParentNode()
-            burst.particleSystems?.first?.particleColor = rgb(1, 0.85, 0.35)
+            burst.particleSystems?.first?.particleColor = rgb(1, 0.76, 0.28)
         }
         drive(dt)
 
@@ -1362,7 +1364,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         t.drawnKey = key
         switch t.kind {
         case .gate:
-            t.ringMat.diffuse.contents = Art.ringImage(progress: progress, color: CGColor(red: 0.8, green: 0.45, blue: 1, alpha: 1), inner: ringInner(t))
+            t.ringMat.diffuse.contents = Art.ringImage(progress: progress, color: CGColor(red: 0.3, green: 0.6, blue: 1, alpha: 1), inner: ringInner(t))
         case .dozer:
             t.ringMat.diffuse.contents = Art.ringImage(progress: progress, color: CGColor(red: 1, green: 0.78, blue: 0.2, alpha: 1), inner: ringInner(t))
         case .win:

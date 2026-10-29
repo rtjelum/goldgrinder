@@ -26,6 +26,8 @@ final class Intro {
     var have = 0                               // coins on the button right now
     var drawn = -1                             // ring step last drawn
     var leaving: CGFloat = -1                  // >= 0 while heading on to the quarry
+    static let coinsPerGold = 10               // loose coins fed into the crusher: this many make 1 gold
+    var coinsFed = 0                           // coins swallowed by the crusher, not yet counted as gold
     let plateMat = Art.pbr(rgb(0.25, 0.75, 0.95), metal: 0.6, rough: 0.35, emit: rgb(0.05, 0.3, 0.45))
     let ringMat = SCNMaterial()
     var start: CGPoint { CGPoint(x: Intro.dx + 12, y: -1) }
@@ -42,10 +44,10 @@ extension Game {
 
         // floor: blue-grey vault cobbles, dark ground around
         let ground = floorShape(CGRect(x: Intro.dx - 60, y: -40, width: 120, height: 140), holes: hole,
-                                mat: floorMat((0.07, 0.08, 0.13), seed: 9, repeats: 24))
+                                mat: floorMat((0.15, 0.14, 0.12), seed: 9, repeats: 24))
         ground.position = v3(0, -0.03, 0)
         scene.rootNode.addChildNode(ground)
-        let cobbles = Art.cobbleImage(seed: 11, stone: (0.36, 0.4, 0.5), grout: (0.13, 0.15, 0.22), count: 6)
+        let cobbles = Art.cobbleImage(seed: 11, stone: (0.5, 0.48, 0.44), grout: (0.22, 0.2, 0.18), count: 6)
         for (r, holes) in [(it.coinRoom, hole), (it.goldRoom, [])] {
             let mat = Art.pbr(cobbles, rough: 0.85)
             mat.diffuse.wrapS = .repeat; mat.diffuse.wrapT = .repeat
@@ -60,13 +62,13 @@ extension Game {
 
         // icy blue crystal walls
         let mats: [SCNMaterial] = [
-            Art.pbr(rgb(0.2, 0.4, 0.75), metal: 0.15, rough: 0.2, emit: rgb(0.02, 0.06, 0.14)),
-            Art.pbr(rgb(0.45, 0.7, 0.95), metal: 0.1, rough: 0.18, emit: rgb(0.05, 0.1, 0.18)),
-            Art.pbr(rgb(0.12, 0.25, 0.5), metal: 0.2, rough: 0.3, emit: rgb(0.01, 0.03, 0.08)),
-            Art.pbr(rgb(0.7, 0.88, 1.0), metal: 0.05, rough: 0.15, emit: rgb(0.1, 0.16, 0.26)),
+            Art.pbr(rgb(0.15, 0.5, 1.0), metal: 0.15, rough: 0.2, emit: rgb(0.03, 0.12, 0.3)),
+            Art.pbr(rgb(0.45, 0.85, 1.0), metal: 0.1, rough: 0.18, emit: rgb(0.08, 0.2, 0.34)),
+            Art.pbr(rgb(0.1, 0.3, 0.8), metal: 0.2, rough: 0.3, emit: rgb(0.02, 0.06, 0.2)),
+            Art.pbr(rgb(0.75, 0.95, 1.0), metal: 0.05, rough: 0.15, emit: rgb(0.16, 0.28, 0.42)),
         ]
         buildWalls(rects: [it.coinRoom, it.goldRoom], gates: [it.gate], openings: [-1000, it.crusherY], openingHalf: 1.9,
-                   mats: mats, rockMat: Art.pbr(rgb(0.1, 0.12, 0.2), rough: 0.9), seed: 99)
+                   mats: mats, rockMat: Art.pbr(rgb(0.1, 0.18, 0.4), rough: 0.9), seed: 99)
         buildGates([it.gate], cap: rgb(1, 0.75, 0.2))
 
         // the button: a well with a glowing plate, its name on it, and a progress ring around it
@@ -124,7 +126,7 @@ extension Game {
         c.crushed = 0; c.pending = 0; c.busy = 0; c.done = false
         for r in c.riders { r.node.removeFromParentNode() }
         c.riders = []
-        it.opened = false; it.have = 0; it.drawn = -1; it.leaving = -1
+        it.opened = false; it.have = 0; it.drawn = -1; it.leaving = -1; it.coinsFed = 0
         it.gate.bars.removeAllActions()
         it.gate.bars.position = v3(it.gate.x, 0, -it.gate.y)
         it.gate.bars.isHidden = false
@@ -206,6 +208,7 @@ extension Game {
                                      sold: { _, _, _ in })
         let load = CGFloat(contacts) + updateQuarry(dt)
         pushLoad = lerp(pushLoad, load, 1 - exp(-10 * dt))
+        feedIntroCoins(dt)
         updateIntroButton()
         updateVisuals(dt, pushing: load > 0)
         it.coins.render(material: Art.coinMat)
@@ -259,6 +262,39 @@ extension Game {
             it.ringMat.diffuse.contents = Art.ringImage(progress: CGFloat(step) / 40, color: CGColor(red: 0.4, green: 0.85, blue: 1, alpha: 1),
                                                         inner: (it.buttonR + 0.2) / (it.buttonR + 0.75))
         }
+    }
+
+    /// Loose coins pushed onto the crusher's feeder belt ride it into the crusher, like the gold lumps.
+    /// Every `coinsPerGold` coins swallowed count as 1 gold.
+    func feedIntroCoins(_ dt: CGFloat) {
+        let it = intro
+        let f = it.coins
+        let c = introQuarry.crushers[0]
+        let x0 = Float(c.x0), y0 = Float(c.y)
+        let mouth = Float(c.mouth), reach = Float(c.x0 + c.feedLen)
+        let pull = Float(1.5 * dt), centre = Float(min(1, 3 * dt))
+        var swallowed = 0
+        for i in 0..<f.count where f.state[i] == .asleep || f.state[i] == .awake {
+            guard abs(f.py[i] - y0) < mouth, f.px[i] < reach, f.ph[i] < f.thick * 3 else { continue }
+            if f.px[i] < x0 + f.r * 1.5 {
+                f.consume(i)
+                swallowed += 1
+            } else {
+                f.move(i, -pull, (y0 - f.py[i]) * centre, { _, _ in false })   // the belt guides it into the mouth
+            }
+        }
+        guard swallowed > 0 else { return }
+        it.coinsFed += swallowed
+        c.busy = max(c.busy, 0.4)
+        let gold = it.coinsFed / Intro.coinsPerGold
+        guard gold > 0 else { return }
+        it.coinsFed -= gold * Intro.coinsPerGold
+        c.crushed += gold
+        c.pending += gold
+        burst.position = world(CGPoint(x: c.x0 + 0.1, y: c.y), 0.6)
+        burstTimer = 0.25
+        floatText("+\(gold)", at: CGPoint(x: c.x0 + 0.5, y: c.y), h: 2, color: rgb(1, 0.85, 0.35), size: 30)
+        roomCrushed(c)
     }
 
     /// The gold room's crusher has had enough: on to the quarry.
