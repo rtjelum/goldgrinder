@@ -175,7 +175,7 @@ enum Art {
 
     static func goldColor(_ v: Float) -> SIMD3<Float> {
         // deep gold in the recesses, bright yellow gold on the raised parts
-        let lo = SIMD3<Float>(0.9, 0.62, 0.16), hi = SIMD3<Float>(1.0, 0.88, 0.45)
+        let lo = SIMD3<Float>(0.92, 0.68, 0.06), hi = SIMD3<Float>(1.0, 0.92, 0.42)   // bright gold
         return simd_mix(lo, hi, SIMD3<Float>(repeating: min(1, max(0, v))))
     }
 
@@ -196,9 +196,9 @@ enum Art {
 
     /// Coins use one picture with the relief's light baked in (no normal or roughness maps): cheap to draw.
     static let coinMat: SCNMaterial = {
-        let m = pbr(coinTexture, metal: 0.85, rough: 0.3)
+        let m = pbr(coinTexture, metal: 0.75, rough: 0.3)
         m.emission.contents = coinTexture
-        m.emission.intensity = 0.2
+        m.emission.intensity = 0.3   // a soft glow
         m.diffuse.mipFilter = .linear
         return m
     }()
@@ -207,7 +207,7 @@ enum Art {
     static let coinGeo: SCNGeometry = {
         let g = SCNCylinder(radius: coinRadius, height: coinThick)
         g.radialSegmentCount = 12
-        let side = pbr(rgb(0.95, 0.68, 0.2), metal: 0.85, rough: 0.3, emit: rgb(0.2, 0.13, 0.02))
+        let side = pbr(rgb(1, 0.78, 0.12), metal: 0.75, rough: 0.3, emit: rgb(0.35, 0.24, 0.0))
         let face = coinMat.copy() as! SCNMaterial
         for p in [face.diffuse, face.emission] {
             // SCNCylinder caps map the whole texture onto the disc; ours has the edge at 0.47

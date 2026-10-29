@@ -11,27 +11,34 @@ final class CoinField {
 
     /// Coins pile at most this many layers high when pushed together, and only the bottom two
     /// layers are stable: coins higher up slide off, so heaps spread out instead of towering.
-    static let maxLayers = 3
+    var maxLayers = 2       // squeezed coins climb at most one coin high; the rest spill around
+    /// When set (> 0), squeezed coins may heap up to this height instead: the top of the dozer's blade.
+    var heapTop: Float = 0
+    var stableLayers = 2   // coins resting higher than this slide off
 
     /// Button wells sunk into the floor: (x, y, radius). Coins inside one rest on its floor.
     var wells: [SIMD3<Float>] = []
     var wellDepth: Float = 0
 
-    let r = Float(Art.coinRadius)
-    let thick = Float(Art.coinThick)
+    let r: Float          // coin radius and thickness (the intro uses bigger coins)
+    let thick: Float
 
     // Per-coin data (struct of arrays)
     var px = [Float](), py = [Float](), ph = [Float](), lastX = [Float](), lastY = [Float]()
     var tiltX = [Float](), tiltZ = [Float](), scale = [Float](), value = [Float](), sellT = [Float]()
     var state = [State](), still = [UInt8](), chunkOf = [Int]()
     var press = [Float]()   // how hard a coin was squeezed this frame
+    var vz = [Float]()      // falling speed
+    var slid = [Float]()    // how far it has tumbled sideways off a heap since it was last pushed
+    var freeT = [Float]()   // time since the blade last touched it
+    var sweep = 0           // next resting coin to check for lost support
     var awake = [Int](), animating = [Int]()
     var deadCount = 0
     var count: Int { px.count }
 
     // Spatial grid for neighbour lookups
     let minX: Float, minY: Float, maxX: Float, maxY: Float
-    let cell: Float = 0.3
+    let cell: Float       // grid cell: at least a coin's reach, so neighbours are always in the next cell
     let gCols: Int, gRows: Int
     var head: [Int]
     var nextIdx = [Int]()
@@ -47,8 +54,11 @@ final class CoinField {
     // Coin mesh template
     var tP = [SIMD3<Float>](), tN = [SIMD3<Float>](), tUV = [SIMD2<Float>](), tI = [UInt32]()
 
-    init(minX: Float, minY: Float, maxX: Float, maxY: Float) {
+    init(minX: Float, minY: Float, maxX: Float, maxY: Float,
+         radius: Float = Float(Art.coinRadius), thickness: Float = Float(Art.coinThick)) {
         self.minX = minX; self.minY = minY; self.maxX = maxX; self.maxY = maxY
+        r = radius; thick = thickness
+        cell = max(0.3, radius * 1.6)
         gCols = Int((maxX - minX) / cell) + 1
         gRows = Int((maxY - minY) / cell) + 1
         head = [Int](repeating: -1, count: gCols * gRows)
@@ -120,7 +130,7 @@ final class CoinField {
         tiltX.append(.random(in: -0.25...0.25)); tiltZ.append(.random(in: -0.25...0.25))
         scale.append(grow ? 0.01 : 1); value.append(v); sellT.append(0)
         state.append(grow ? .growing : .asleep); still.append(0)
-        press.append(0)
+        press.append(0); vz.append(0); slid.append(0); freeT.append(0)
         let c = chunkIndex(x, y)
         chunkOf.append(c)
         chunkDirty[c] = true
@@ -164,6 +174,7 @@ final class CoinField {
             if state[i] == .growing { scale[i] = 1 }
             state[i] = .awake
             press[i] = 0
+            freeT[i] = 0.3   // bumped awake: a moment to move before it settles again
             awake.append(i)
         }
         still[i] = 0
@@ -232,6 +243,7 @@ final class CoinField {
                         let nx = b.prevX + local.y * b.fx + local.x * lx
                         let ny = b.prevY + local.y * b.fy + local.x * ly
                         move(i, nx - px[i], ny - py[i], blocked)
+                        freeT[i] = 0
                     }
                     i = nextIdx[i]
                 }
@@ -240,7 +252,9 @@ final class CoinField {
     }
 
     /// Push coins out of the chassis box and the plow walls. Returns how many coins were touched.
-    func pushOut(_ b: Blade, _ blocked: (Float, Float) -> Bool) -> Int {
+    /// `before`: where the coins were before they shoved each other this frame. A coin shoved across a plow wall
+    /// goes back to the side it came from, so a squeeze can't push coins through the blade.
+    func pushOut(_ b: Blade, _ blocked: (Float, Float) -> Bool, before: ([Float], [Float])? = nil) -> Int {
         var contacts = 0
         var lo = SIMD2<Float>(b.x, b.y), hi = lo
         let reachBody = max(b.halfWidth, max(b.back, b.front)) * 1.5
@@ -274,10 +288,24 @@ final class CoinField {
                         else { move(i, -b.fx * pb, -b.fy * pb, blocked) }
                         touched = true
                     }
-                    // plow walls
-                    for s in b.segs {
+                    // plow walls (a coin on top of a heap as high as the blade goes over it instead)
+                    let overTop = heapTop > 0 && ph[i] >= heapTop + thick * 0.5   // clear above the blade's top edge
+                    for s in b.segs where !overTop {
                         let abx = s.z - s.x, aby = s.w - s.y
                         let len2 = abx * abx + aby * aby
+                        if let (bx, by) = before, i < bx.count, len2 > 1e-8 {
+                            // shoved across the wall this frame? put it back on the side it came from
+                            let len = len2.squareRoot(), nx = -aby / len, ny = abx / len
+                            let s0 = (bx[i] - s.x) * nx + (by[i] - s.y) * ny
+                            let s1 = (px[i] - s.x) * nx + (py[i] - s.y) * ny
+                            let t1 = ((px[i] - s.x) * abx + (py[i] - s.y) * aby) / len2
+                            if s0 * s1 < 0 && t1 > 0 && t1 < 1 && abs(s1) < wr * 2 {
+                                let side: Float = s0 > 0 ? 1 : -1
+                                move(i, nx * (side * wr - s1), ny * (side * wr - s1), blocked)
+                                touched = true
+                                continue
+                            }
+                        }
                         var t = len2 > 0 ? ((px[i] - s.x) * abx + (py[i] - s.y) * aby) / len2 : 0
                         t = max(0, min(1, t))
                         let ddx = px[i] - (s.x + abx * t), ddy = py[i] - (s.y + aby * t)
@@ -292,7 +320,7 @@ final class CoinField {
                             touched = true
                         }
                     }
-                    if touched { contacts += 1 }
+                    if touched { contacts += 1; freeT[i] = 0 }
                     i = nextIdx[i]
                 }
             }
@@ -304,17 +332,20 @@ final class CoinField {
     func step(dt: Float, blade b: Blade, fillers: [(Float, Float, Float, Float)],
               blocked: (Float, Float) -> Bool, sold: (Float, Float, Float) -> Void) -> Int {
         rebuildGrid()
-        for i in awake { press[i] = 0 }
+        checkResting()
+        for i in awake { press[i] = 0; freeT[i] += dt }
 
         // 1. Coins held in the plow ride along, then chassis and plow walls push the rest
         carry(b, blocked)
         let contacts = pushOut(b, blocked)
+        let before = (px, py)          // where everything is before the coins shove each other
 
         // 2. Coins push each other apart, but only within the same layer. When the blade squeezes
         //    two coins hard together, the one being pushed from behind climbs on top: that builds the heap.
-        let minD = 2 * r * 0.86, minD2 = minD * minD
+        let minD = 2 * r * 0.74, minD2 = minD * minD   // coins overlap a little: tightly packed heaps
         let layer = thick * 0.95
-        let maxH = layer * Float(CoinField.maxLayers - 1) + 0.001
+        // a heap may rise a little above the blade's top edge, so its top coins go over the blade
+        let maxH = max(layer * Float(maxLayers - 1), heapTop + thick * 1.6) + 0.001
         for _ in 0..<3 {
             var k = 0
             while k < awake.count {
@@ -333,8 +364,8 @@ final class CoinField {
                                         move(j, .random(in: -0.02...0.02), .random(in: -0.02...0.02), blocked)
                                     } else {
                                         let d = d2.squareRoot()
-                                        if d > minD * 0.96 { j = nextIdx[j]; continue }   // close enough: no shivering
-                                        let push = (minD - d) * 0.5
+                                        if d > minD * 0.9 { j = nextIdx[j]; continue }    // close enough: no shivering
+                                        let push = (minD - d) * 0.35
                                         press[i] += push; press[j] += push
                                         let nx = dx / d, ny = dy / d
                                         move(i, -nx * push, -ny * push, blocked)
@@ -350,7 +381,8 @@ final class CoinField {
         }
 
         // Squeezed coins climb on top of their neighbours: a jam turns into a heap instead of shivering
-        for i in awake where state[i] == .awake && press[i] > 0.03 {
+        // (only near the blade: away from it, a heap doesn't keep churning by itself)
+        for i in awake where state[i] == .awake && press[i] > 0.03 && freeT[i] < 0.4 {
             var top = -Float.greatestFiniteMagnitude
             let (gx, gy) = gridIndex(px[i], py[i])
             for cy in max(0, gy - 1)...min(gRows - 1, gy + 1) {
@@ -366,13 +398,17 @@ final class CoinField {
                 }
             }
             if top > -1e9 && top + layer <= ground(px[i], py[i]) + maxH {
+                // it lands on top, tilted once (not re-tilted every time, which made coins wriggle)
                 ph[i] = top + layer
+                if abs(tiltX[i]) + abs(tiltZ[i]) < 0.3 {
+                    tiltX[i] = .random(in: -0.35...0.35); tiltZ[i] = .random(in: -0.35...0.35)
+                }
                 touch(i)
             }
         }
 
         // walls win over neighbours shoving coins through them
-        _ = pushOut(b, blocked)
+        _ = pushOut(b, blocked, before: before)
 
         // 3. Gravity (coins without a coin underneath fall), selling, sleeping
         let supportR2 = (minD * 1.05) * (minD * 1.05)
@@ -404,24 +440,36 @@ final class CoinField {
                     }
                 }
             }
-            if support > g + layer * 1.5 {
+            if press[i] > 0.03 { slid[i] = 0 }   // pushed again: free to slide off again
+            // coins high on a heap tumble down its side (quickly, then they land and stop);
+            // a coin hemmed in by others gives up after a moment instead of shuffling forever
+            var tumbling = false
+            if support > g + maxH || (support > g + layer * (Float(stableLayers) - 0.5) && slid[i] < 2 * r) {
+                tumbling = true
+                // (at most about one coin's width sideways, then it drops or stays: no gliding across the heap)
+                slid[i] += 6 * dt
                 // resting on two or more coins: slide off the stack (faster the higher it is),
                 // so heaps spread out instead of building towers
                 var dx = px[i] - topX, dy = py[i] - topY
                 let d = (dx * dx + dy * dy).squareRoot()
                 if d < 1e-4 { let a = Float.random(in: 0...(2 * .pi)); dx = cos(a); dy = sin(a) } else { dx /= d; dy /= d }
-                let speed: Float = support > g + maxH ? 3 : 1.2
+                let speed: Float = 6   // tumbles off quickly: heavy, not drifting
                 move(i, dx * speed * dt, dy * speed * dt, blocked)
             }
+            // never higher than the stacking cap, whatever is underneath
+            support = min(support, g + maxH)
             var falling = false
-            if ph[i] < support - 0.001 {
-                ph[i] = support          // pushed up out of a well
+            if ph[i] < g - 0.001 {
+                ph[i] = g                // pushed up out of a well (only the ground lifts coins; coins never do)
                 touch(i)
-            } else if ph[i] > support + 0.001 {
-                ph[i] = max(support, ph[i] - 2.2 * dt)
+            } else if ph[i] > min(support, g + maxH) + 0.001 {
+                // falls with gravity: slow at first, then fast, and lands with a snap
+                vz[i] = min(vz[i] + 80 * dt, 25)   // strong gravity: heavy gold drops hard
+                ph[i] = max(support, ph[i] - vz[i] * dt)
                 touch(i)
                 falling = true
             }
+            if !falling { vz[i] = 0 }
 
             var selling = false
             for f in fillers where px[i] > f.0 && px[i] < f.0 + f.2 && py[i] > f.1 && py[i] < f.1 + f.3 {
@@ -443,7 +491,8 @@ final class CoinField {
             } else {
                 still[i] &+= 1
             }
-            if still[i] > 25 { state[i] = .asleep; lastX[i] = px[i]; lastY[i] = py[i] } else { stillAwake.append(i) }
+            // settles once it stops getting anywhere, or soon after the blade last touched it
+            if still[i] > 12 || (freeT[i] > 0.6 && !falling && !tumbling) { state[i] = .asleep; lastX[i] = px[i]; lastY[i] = py[i] } else { stillAwake.append(i) }
         }
         awake = stillAwake
 
@@ -472,6 +521,38 @@ final class CoinField {
         return contacts
     }
 
+    /// Resting coins don't notice when the coins under them are pushed away, so check a few hundred of them
+    /// each frame (all of them every quarter second or so) and wake any left hanging in the air: they fall.
+    func checkResting() {
+        guard count > 0 else { return }
+        let layer = thick * 0.95
+        let minD = 2 * r * 0.74, supportR2 = (minD * 1.05) * (minD * 1.05)
+        for _ in 0..<min(count, 300) {
+            sweep = (sweep + 1) % count
+            let i = sweep
+            guard state[i] == .asleep else { continue }
+            let g = ground(px[i], py[i])
+            if ph[i] <= g + 0.002 { continue }
+            // high on a heap and hasn't tumbled yet: let it tumble down the side
+            if ph[i] > g + layer * (Float(stableLayers) - 0.5) && slid[i] < 2 * r { wake(i); continue }
+            var supported = false
+            let (gx, gy) = gridIndex(px[i], py[i])
+            search: for cy in max(0, gy - 1)...min(gRows - 1, gy + 1) {
+                for cx in max(0, gx - 1)...min(gCols - 1, gx + 1) {
+                    var j = head[cy * gCols + cx]
+                    while j >= 0 {
+                        if j != i && solid(j) && ph[j] < ph[i] - layer * 0.5 && ph[j] + layer >= ph[i] - 0.01 {
+                            let dx = px[j] - px[i], dy = py[j] - py[i]
+                            if dx * dx + dy * dy < supportR2 { supported = true; break search }
+                        }
+                        j = nextIdx[j]
+                    }
+                }
+            }
+            if !supported { wake(i) }
+        }
+    }
+
     /// Add a coin that falls (from the end of a belt).
     func drop(_ x: Float, _ y: Float, h: Float, value v: Float) {
         add(x, y, h: h, value: v, grow: false)
@@ -482,7 +563,7 @@ final class CoinField {
     func reset() {
         px.removeAll(); py.removeAll(); ph.removeAll(); lastX.removeAll(); lastY.removeAll()
         tiltX.removeAll(); tiltZ.removeAll(); scale.removeAll(); value.removeAll(); sellT.removeAll()
-        state.removeAll(); still.removeAll(); chunkOf.removeAll(); press.removeAll(); nextIdx.removeAll()
+        state.removeAll(); still.removeAll(); chunkOf.removeAll(); press.removeAll(); vz.removeAll(); slid.removeAll(); freeT.removeAll(); nextIdx.removeAll()
         awake.removeAll(); animating.removeAll()
         deadCount = 0
         for k in 0..<chunkDirty.count { chunkDirty[k] = true }
@@ -507,7 +588,7 @@ final class CoinField {
         px = pick(px); py = pick(py); ph = pick(ph); lastX = pick(lastX); lastY = pick(lastY)
         tiltX = pick(tiltX); tiltZ = pick(tiltZ); scale = pick(scale); value = pick(value); sellT = pick(sellT)
         state = pick(state); still = pick(still); chunkOf = pick(chunkOf)
-        press = pick(press)
+        press = pick(press); vz = pick(vz); slid = pick(slid); freeT = pick(freeT)
         nextIdx = [Int](repeating: -1, count: keep.count)
         awake = awake.compactMap { remap[$0] >= 0 ? remap[$0] : nil }
         animating = wasAnimating.compactMap { remap[$0] >= 0 ? remap[$0] : nil }

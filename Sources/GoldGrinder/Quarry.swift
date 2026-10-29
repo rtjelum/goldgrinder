@@ -3,7 +3,7 @@ import SpriteKit
 import simd
 
 /// Which part of the game the dozer is in: the desert quarry up top (played first), or the mines below.
-enum Stage { case quarry, mines }
+enum Stage { case intro, quarry, mines }
 
 /// A rough-cut gold block in the quarry. It comes in four sizes (`cls` 0...3): bigger ones are worth more gold
 /// and need a bigger dozer to move (class k needs dozer k + 1). The dozer pushes its outline; walls and other
@@ -149,7 +149,7 @@ extension Game {
         q.dust.addParticleSystem(Art.particles(color: rgb(0.9, 0.72, 0.45), size: 0.35, life: 1.0, speed: 1.6,
                                                spread: 60, gravity: 0.6, additive: false))
         scene.rootNode.addChildNode(q.dust)
-        let gold = Art.pbr(rgb(1, 0.74, 0.2), metal: 1, rough: 0.38, emit: rgb(0.32, 0.18, 0.02))
+        let gold = Art.pbr(rgb(1, 0.8, 0.14), metal: 0.8, rough: 0.35, emit: rgb(0.38, 0.25, 0.0))
         q.nugget = (0..<5).map { k in
             let g = Art.nugget(seed: UInt64(31 + k * 7))
             g.materials = [gold]
@@ -240,20 +240,25 @@ extension Game {
                     if q.gates.contains(where: { abs(p.y - $0.y) < r + 1.4 }) { continue }
                     if p.dist(q.start) < 3 { continue }
                     if q.blocks.contains(where: { $0.p.dist(p) < $0.r + r + 0.9 }) { continue }
-                    let b = GoldBlock(room: i, cls: cls, at: p, angle: CGFloat.random(in: 0...6.28, using: &rng))
-                    // a rough-cut lump of gold
-                    let n = SCNNode(geometry: q.nugget[Int.random(in: 0..<q.nugget.count, using: &rng)])
-                    n.scale = v3(r * 0.95, r * CGFloat.random(in: 0.75...0.95, using: &rng), r * 0.95)
-                    n.castsShadow = true
-                    b.node.addChildNode(n)
-                    q.blocks.append(b)
-                    scene.rootNode.addChildNode(b.node)
-                    placeBlock(b)
+                    addBlock(to: q, room: i, cls: cls, at: p, rng: &rng)
                     placed = true
                 }
                 if !placed { c.need -= cls + 1 }   // no room for it: don't make the gate wait for it
             }
         }
+    }
+
+    /// A rough-cut lump of gold, added to a quarry's blocks and the scene.
+    func addBlock(to q: Quarry, room: Int, cls: Int, at p: CGPoint, rng: inout SeededRNG) {
+        let r = Quarry.sizes[cls]
+        let b = GoldBlock(room: room, cls: cls, at: p, angle: CGFloat.random(in: 0...6.28, using: &rng))
+        let n = SCNNode(geometry: mainQuarry.nugget[Int.random(in: 0..<mainQuarry.nugget.count, using: &rng)])
+        n.scale = v3(r * 0.95, r * CGFloat.random(in: 0.75...0.95, using: &rng), r * 0.95)
+        n.castsShadow = true
+        b.node.addChildNode(n)
+        q.blocks.append(b)
+        scene.rootNode.addChildNode(b.node)
+        placeBlock(b)
     }
 
     func placeBlock(_ b: GoldBlock) {
@@ -283,16 +288,17 @@ extension Game {
 
     /// Colours that differ between the warm desert and the purple mines.
     func applyStageLook() {
-        let desert = stage == .quarry
-        let bg = desert ? rgb(0.13, 0.08, 0.05) : rgb(0.05, 0.03, 0.08)
+        let desert = stage == .quarry, vault = stage == .intro
+        let bg = vault ? rgb(0.03, 0.05, 0.1) : desert ? rgb(0.13, 0.08, 0.05) : rgb(0.05, 0.03, 0.08)
         scene.background.contents = bg
         view?.backgroundColor = bg
-        ambient.color = desert ? rgb(1, 0.82, 0.62) : rgb(0.7, 0.6, 0.95)
-        ambient.intensity = desert ? 380 : 320
+        ambient.color = vault ? rgb(0.75, 0.82, 1) : desert ? rgb(1, 0.82, 0.62) : rgb(0.7, 0.6, 0.95)
+        ambient.intensity = desert || vault ? 380 : 320
+        let goal = vault ? "fill the button, then crush the gold" : desert ? "push the gold into the crusher" : "pile gold on the buttons"
         #if os(iOS)
-        hud.hint.text = desert ? "▲▼ drive · ◀ ▶ turn · push the gold into the crusher" : "▲▼ drive · ◀ ▶ turn · pile gold on the buttons"
+        hud.hint.text = "▲▼ drive · ◀ ▶ turn · " + goal
         #else
-        hud.hint.text = desert ? "W/S drive · A/D turn · push the gold into the crusher" : "W/S drive · A/D turn · pile gold on the buttons"
+        hud.hint.text = "W/S drive · A/D turn · " + goal
         #endif
         hud.layout()
     }
@@ -463,6 +469,10 @@ extension Game {
     /// Gold crushed: enough earns the room's bigger dozer; more opens the gate, or after the last room heads down to the mines.
     func roomCrushed(_ c: Crusher) {
         let q = quarry
+        if stage == .intro {
+            if !c.done && c.crushed >= c.need { c.done = true; finishIntro() }
+            return
+        }
         if !c.upgraded, let at = Quarry.plan(c.room, round: round).upgradeAt, c.crushed >= at, tier < Quarry.maxTier(round: round) {
             c.upgraded = true
             tier += 1

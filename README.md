@@ -12,6 +12,12 @@ Inspired by "Idle Zombie Miner" ads.
 
 ## How to play
 
+### The intro
+
+Every new game starts with a taste of power: the biggest dozer with a flat blade, in a huge blue crystal
+vault with a mountain of gold coins on one side. Plough 400 coins across into the **OPEN GATE** button to open the
+gate, then push 50 gold lumps in the next room onto the crusher's belt. Then it's on to the quarry, in dozer 1.
+
 ### The quarry (up top)
 
 The game starts in a desert quarry above the mines: four red sandstone rooms laid out like the mines.
@@ -85,6 +91,7 @@ Sources/GoldGrinder/
   Game.swift                  Game rules, mines, belts, buttons, camera, driving
   Coins.swift                 Coin physics (pushing, stacking, falling) and batched coin rendering
   Quarry.swift                The desert quarry: gold blocks, crushers, and the trip down to the mines
+  Intro.swift                 The intro: a coin vault and a gold room, with the biggest dozer
   DozerModel.swift            The six 3D bulldozers, built from code
   Art.swift                   Materials, crystal walls, textures, signs and icons (CoreGraphics)
   Hud.swift                   2D overlay: labels, joystick, NEW GAME button, win screen

@@ -16,6 +16,7 @@ enum DozerModel {
         let bodyFront: Float
         let exhaust: SIMD3<Float>    // smoke point (scaled, model space)
         let hull: [SIMD3<Float>]     // wall-collision points: (x, z, radius), scaled, model space
+        let plowTop: Float           // height of the top of the blade (scaled)
     }
 
     // MARK: Materials
@@ -410,6 +411,6 @@ enum DozerModel {
         for p in [plow.first!, plow.last!] { hull.append([p.x * s, p.y * s, (thick / 2 + 0.04) * s]) }
         return Built(node: root, scale: s, plow: scaled, wallHalf: (thick / 2 + 0.09) * s,
                      bodyHalfWidth: 0.64 * s, bodyBack: trackLen / 2 * s, bodyFront: (back - thick / 2) * s,
-                     exhaust: smoke * s, hull: hull)
+                     exhaust: smoke * s, hull: hull, plowTop: (y0 + height) * s)
     }
 }

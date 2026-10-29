@@ -68,10 +68,10 @@ final class Belt {
 
 final class Gate {
     let y: CGFloat, x: CGFloat
-    let half: CGFloat = 2.6
+    let half: CGFloat               // half the opening's width
     var open = false
     let bars = SCNNode()
-    init(y: CGFloat, x: CGFloat) { self.y = y; self.x = x }
+    init(y: CGFloat, x: CGFloat, half: CGFloat = 2.6) { self.y = y; self.x = x; self.half = half }
 }
 
 struct DozerSpec {
@@ -184,7 +184,12 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     var joyActive = false
     var keys = Set<UInt16>()
 
-    let quarry = Quarry()             // the desert stage played before the mines
+    let mainQuarry = Quarry()         // the desert stage played before the mines
+    let introQuarry = Quarry()        // the intro's gold room (one room with a crusher)
+    let intro = Intro()               // first launch only: a taste of the biggest dozer
+    var introDozer: DozerModel.Built!
+    /// The quarry rules work on whichever block-and-crusher area the dozer is in.
+    var quarry: Quarry { stage == .intro ? introQuarry : mainQuarry }
     var round = 1                     // after winning, the game starts over in the quarry with more blocks
     var nextRoundT: CGFloat = -1      // >= 0 while waiting to head back up after a win
     var stage = Stage.quarry
@@ -231,7 +236,9 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         buildBelts()
         buildEffects()
         buildQuarry()
+        buildIntro()
         pos = quarry.start; prevPos = pos; camTarget = pos   // the game starts up in the quarry
+        startIntro()                                         // ... after the intro
         applyTier()
         buildCamera()
         scene.rootNode.addChildNode(coins.root)
@@ -250,7 +257,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         view.preferredFramesPerSecond = 60
         view.isPlaying = true
         view.loops = true
-        view.prepare((dozerModels + quarryDozers).map { $0.node }, completionHandler: nil)
+        view.prepare((dozerModels + quarryDozers + [introDozer]).map { $0.node }, completionHandler: nil)
         warmUpGraphics()
     }
 
@@ -345,6 +352,27 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     }
     let wellDepth: CGFloat = 0.32
 
+    /// A well under a hole in the floor: dark stone walls going down to a floor, with a metal lip flush with the ground.
+    func buildWell(_ p: CGPoint, _ r: CGFloat) {
+        let wallMat = Art.pbr(rgb(0.13, 0.09, 0.17), rough: 0.9)
+        let bottomMat = Art.pbr(rgb(0.1, 0.07, 0.13), rough: 0.9)
+        let lipMat = Art.pbr(rgb(0.55, 0.42, 0.25), metal: 0.9, rough: 0.3)
+        let D = wellDepth
+        let n = SCNNode()
+        n.position = world(p)
+        let wall = SCNTube(innerRadius: r, outerRadius: r + 0.1, height: D + 0.04)
+        wall.radialSegmentCount = 64
+        wall.materials = [wallMat]
+        let wn = SCNNode(geometry: wall); wn.position = v3(0, -(D + 0.04) / 2 - 0.005, 0); n.addChildNode(wn)
+        let bottom = SCNCylinder(radius: r + 0.05, height: 0.02); bottom.radialSegmentCount = 64
+        bottom.materials = [bottomMat]
+        let bn = SCNNode(geometry: bottom); bn.position = v3(0, -D - 0.03, 0); n.addChildNode(bn)
+        let lip = SCNTube(innerRadius: r, outerRadius: r + 0.13, height: 0.02); lip.radialSegmentCount = 64
+        lip.materials = [lipMat]
+        let ln = SCNNode(geometry: lip); ln.position = v3(0, 0.005, 0); n.addChildNode(ln)
+        scene.rootNode.addChildNode(n)
+    }
+
     /// A flat floor piece in game coordinates with round holes cut out for the wells.
     func floorShape(_ r: CGRect, holes: [(p: CGPoint, r: CGFloat)], mat: SCNMaterial) -> SCNNode {
         #if os(macOS)
@@ -384,26 +412,8 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             #endif
             scene.rootNode.addChildNode(floorShape(a.rect, holes: inside, mat: mat))
         }
-        // the wells: dark stone walls going down to a floor, with a metal lip flush with the ground
-        let wallMat = Art.pbr(rgb(0.13, 0.09, 0.17), rough: 0.9)
-        let bottomMat = Art.pbr(rgb(0.1, 0.07, 0.13), rough: 0.9)
-        let lipMat = Art.pbr(rgb(0.55, 0.42, 0.25), metal: 0.9, rough: 0.3)
+        for h in holes { buildWell(h.p, h.r) }
         let D = wellDepth
-        for h in holes {
-            let n = SCNNode()
-            n.position = world(h.p)
-            let wall = SCNTube(innerRadius: h.r, outerRadius: h.r + 0.1, height: D + 0.04)
-            wall.radialSegmentCount = 64
-            wall.materials = [wallMat]
-            let wn = SCNNode(geometry: wall); wn.position = v3(0, -(D + 0.04) / 2 - 0.005, 0); n.addChildNode(wn)
-            let bottom = SCNCylinder(radius: h.r + 0.05, height: 0.02); bottom.radialSegmentCount = 64
-            bottom.materials = [bottomMat]
-            let bn = SCNNode(geometry: bottom); bn.position = v3(0, -D - 0.03, 0); n.addChildNode(bn)
-            let lip = SCNTube(innerRadius: h.r, outerRadius: h.r + 0.13, height: 0.02); lip.radialSegmentCount = 64
-            lip.materials = [lipMat]
-            let ln = SCNNode(geometry: lip); ln.position = v3(0, 0.005, 0); n.addChildNode(ln)
-            scene.rootNode.addChildNode(n)
-        }
         coins.wells = holes.map { SIMD3<Float>(Float($0.p.x), Float($0.p.y), Float($0.r)) }
         coins.wellDepth = Float(D)
     }
@@ -536,7 +546,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     func sizeTags() {
         for t in tags {
             let need = t.price / Double(areas[t.area].value)
-            let d = 2 * Double(Art.coinRadius) * 0.86          // coin spacing in a packed layer
+            let d = 2 * Double(Art.coinRadius) * 0.8           // coin spacing in a packed layer
             let fit = CGFloat((need * d * d / (Double.pi * 1.5)).squareRoot()) * 1.15
             t.radius = min(4, max(0.75, fit))
         }
@@ -639,7 +649,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     func buildBelts() {
         let frameMat = Game.beltFrameMat
         let railMat = Game.beltRailMat
-        let goldMat = Art.pbr(rgb(1, 0.75, 0.2), metal: 1, rough: 0.28, emit: rgb(0.35, 0.2, 0.0))
+        let goldMat = Art.pbr(rgb(1, 0.8, 0.15), metal: 0.8, rough: 0.28, emit: rgb(0.4, 0.26, 0.0))
         for (i, a) in areas.enumerated() {
             let b = Belt(area: i, a: a)
             belts.append(b)
@@ -776,8 +786,13 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         shownDozer = key
         if dozerModels.isEmpty { dozerModels = (0..<6).map { DozerModel.build(level: $0) } }
         if quarryDozers.isEmpty { quarryDozers = (0..<4).map { DozerModel.build(level: $0, flat: true) } }
+        if introDozer == nil { introDozer = DozerModel.build(level: 5, flat: true) }   // the biggest, with a flat blade
         dozer?.node.removeFromParentNode()
-        dozer = stage == .quarry ? quarryDozers[min(tier, quarryDozers.count - 1)] : dozerModels[tier]
+        switch stage {
+        case .intro: dozer = introDozer
+        case .quarry: dozer = quarryDozers[min(tier, quarryDozers.count - 1)]
+        case .mines: dozer = dozerModels[tier]
+        }
         dozer.node.simdScale = [1, 1, 1]
         scene.rootNode.addChildNode(dozer.node)
         placeDozer()
@@ -786,6 +801,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     /// Start over (round 1), or the next round after a win: back up to the quarry, first dozer,
     /// fresh blocks and full belts, no gold on the floor.
     func resetWorld(round newRound: Int = 1) {
+        stage = .quarry
         round = newRound
         nextRoundT = -1
         // harder each round: the mine buttons need 25% more coins per round (up to +50%, so the piles still fit
@@ -835,6 +851,8 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         if round > 1 {
             let r = round
             DispatchQueue.main.async { [weak self] in self?.hud.roundBanner(r) }
+        } else {
+            startIntro()   // a new game starts with the intro
         }
     }
 
@@ -908,6 +926,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     /// Is a circle of radius r at (x, y) outside the open play area?
     func blocked(_ x: CGFloat, _ y: CGFloat, _ r: CGFloat) -> Bool {
         if stage == .quarry { return quarryBlocked(x, y, r) }
+        if stage == .intro { return introBlocked(x, y, r) }
         guard let ai = areas.firstIndex(where: { y >= $0.rect.minY && y < $0.rect.maxY }) else { return true }
         guard areaUnlocked(ai) else { return true }
         let a = areas[ai].rect
@@ -939,6 +958,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         }
         drive(dt)
 
+        if stage == .intro { updateIntro(dt); return }
         if stage == .quarry {
             let load = updateQuarry(dt)
             pushLoad = lerp(pushLoad, load, 1 - exp(-10 * dt))
@@ -955,6 +975,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         }
 
         let blade = makeBlade()
+        coins.heapTop = dozer.plowTop      // coins heap up as high as the blade, then tumble off
         let contacts = coins.step(dt: Float(dt), blade: blade, fillers: [],
                                   blocked: { [unowned self] x, y in self.blocked(CGFloat(x), CGFloat(y), 0.1) },
                                   sold: { _, _, _ in })
@@ -1034,6 +1055,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             popTwinkle(n, at: world(b.p + off, b.r * 0.85 + 0.05))
             return
         }
+        let coins = stage == .intro ? intro.coins : self.coins
         guard twinkleTimer <= 0, coins.count > 0 else { return }
         twinkleTimer = .random(in: 0.15...0.5)
         guard let n = twinkles.first(where: { $0.isHidden }) else { return }
@@ -1123,7 +1145,10 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         let f = CGPoint(x: cos(newHeading), y: sin(newHeading))
         let step = f * (velocity * dt)
         let old = pos
-        let stuck = hullBlocked(old, heading)   // e.g. just upgraded to a bigger dozer next to a wall
+        // Already overlapping something (e.g. just upgraded to a bigger dozer next to a wall)? Then a move is fine
+        // as long as no part of the dozer that was clear runs into a wall: it can work itself free,
+        // but never push on through a wall or a closed gate.
+        let stuckAt = hullHits(old, heading)
         // The player's turn comes first; if the plow would hit a wall, back off a little to make room.
         let back = forward * (1.2 * dt)
         let xs = CGPoint(x: step.x, y: 0), ys = CGPoint(x: 0, y: step.y)
@@ -1137,7 +1162,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             tries += [(old - reverse, heading), (old - CGPoint(x: reverse.x, y: 0), heading), (old - CGPoint(x: 0, y: reverse.y), heading)]
         }
         tries += [(old + step, heading), (old + xs, heading), (old + ys, heading)]
-        if let ok = tries.first(where: { stuck || !hullBlocked($0.0, $0.1) }) {
+        if let ok = tries.first(where: { hullHits($0.0, $0.1).isSubset(of: stuckAt) }) {
             pos = ok.0
             heading = ok.1
             if ok.0 == old && step.length > 0.001 { velocity *= 0.5 }   // ran into a wall
@@ -1147,6 +1172,19 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     }
 
     /// Does any part of the dozer (chassis or plow) overlap a wall at this position and heading?
+    /// Which of the dozer's outline points overlap a wall (or a block too heavy to move) at this position and heading.
+    func hullHits(_ p: CGPoint, _ h: CGFloat) -> Set<Int> {
+        let fx = cos(h), fy = sin(h)
+        let lx = -fy, ly = fx
+        var hits = Set<Int>()
+        for (k, q) in dozer.hull.enumerated() {
+            let x = p.x + CGFloat(q.y) * fx + CGFloat(q.x) * lx
+            let y = p.y + CGFloat(q.y) * fy + CGFloat(q.x) * ly
+            if blocked(x, y, CGFloat(q.z)) || (stage != .mines && hitsPinnedBlock(x, y, CGFloat(q.z))) { hits.insert(k) }
+        }
+        return hits
+    }
+
     func hullBlocked(_ p: CGPoint, _ h: CGFloat) -> Bool {
         let fx = cos(h), fy = sin(h)
         let lx = -fy, ly = fx                     // model +x is the dozer's left in game coords
@@ -1154,7 +1192,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             let x = p.x + CGFloat(q.y) * fx + CGFloat(q.x) * lx
             let y = p.y + CGFloat(q.y) * fy + CGFloat(q.x) * ly
             if blocked(x, y, CGFloat(q.z)) { return true }
-            if stage == .quarry && hitsPinnedBlock(x, y, CGFloat(q.z)) { return true }
+            if stage != .mines && hitsPinnedBlock(x, y, CGFloat(q.z)) { return true }
         }
         return false
     }
