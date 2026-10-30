@@ -28,7 +28,10 @@ final class Intro {
     var leaving: CGFloat = -1                  // >= 0 while heading on to the quarry
     static let coinsPerGold = 10               // loose coins fed into the crusher: this many make 1 gold
     var coinsFed = 0                           // coins swallowed by the crusher, not yet counted as gold
-    let plateMat = Art.pbr(rgb(0.25, 0.75, 0.95), metal: 0.6, rough: 0.35, emit: rgb(0.05, 0.3, 0.45))
+    let plateMat: SCNMaterial = {
+        let pad = Art.padImage((0.25, 0.85, 1))
+        return Art.pbr(pad, metal: 0.4, rough: 0.35, emit: pad)
+    }()
     let ringMat = SCNMaterial()
     var start: CGPoint { CGPoint(x: Intro.dx + 12, y: -1) }
 
@@ -42,22 +45,13 @@ extension Game {
         let it = intro
         let hole = [(p: it.button, r: it.buttonR)]
 
-        // floor: blue-grey vault cobbles, dark ground around
-        let ground = floorShape(CGRect(x: Intro.dx - 60, y: -40, width: 120, height: 140), holes: hole,
-                                mat: floorMat((0.15, 0.14, 0.12), seed: 9, repeats: 24))
+        // floor: the same dirt as the quarry, a little cooler
+        let around = CGRect(x: Intro.dx - 60, y: -40, width: 120, height: 140)
+        let ground = floorShape(around, holes: hole, mat: dirtMat(around, tint: (0.85, 0.83, 0.82), seed: 9))
         ground.position = v3(0, -0.03, 0)
         scene.rootNode.addChildNode(ground)
-        let cobbles = Art.cobbleImage(seed: 11, stone: (0.5, 0.48, 0.44), grout: (0.22, 0.2, 0.18), count: 6)
         for (r, holes) in [(it.coinRoom, hole), (it.goldRoom, [])] {
-            let mat = Art.pbr(cobbles, rough: 0.85)
-            mat.diffuse.wrapS = .repeat; mat.diffuse.wrapT = .repeat
-            mat.diffuse.mipFilter = .linear
-            #if os(macOS)
-            mat.diffuse.contentsTransform = SCNMatrix4MakeScale(r.width / 4, r.height / 4, 1)
-            #else
-            mat.diffuse.contentsTransform = SCNMatrix4MakeScale(Float(r.width / 4), Float(r.height / 4), 1)
-            #endif
-            scene.rootNode.addChildNode(floorShape(r, holes: holes, mat: mat))
+            scene.rootNode.addChildNode(floorShape(r, holes: holes, mat: dirtMat(r, tint: (0.98, 0.95, 0.93), seed: 11)))
         }
 
         // icy blue crystal walls
@@ -68,7 +62,7 @@ extension Game {
             Art.pbr(rgb(0.75, 0.95, 1.0), metal: 0.05, rough: 0.15, emit: rgb(0.16, 0.28, 0.42)),
         ]
         buildWalls(rects: [it.coinRoom, it.goldRoom], gates: [it.gate], openings: [-1000, it.crusherY], openingHalf: 1.9,
-                   mats: mats, rockMat: Art.pbr(rgb(0.1, 0.18, 0.4), rough: 0.9), seed: 99)
+                   mats: mats, rockMat: Art.pbr(rgb(0.42, 0.38, 0.34), rough: 0.9), seed: 99, grain: 0.25)
         buildGates([it.gate], cap: rgb(1, 0.75, 0.2))
 
         // the button: a well with a glowing plate, its name on it, and a progress ring around it
@@ -76,7 +70,7 @@ extension Game {
         let bn = SCNNode()
         bn.position = world(it.button)
         let disc = SCNCylinder(radius: it.buttonR, height: 0.02); disc.radialSegmentCount = 64
-        disc.materials = [it.plateMat]
+        disc.materials = [Art.pbr(rgb(0.1, 0.1, 0.11), metal: 0.6, rough: 0.4), it.plateMat, it.plateMat]
         let dn = SCNNode(geometry: disc); dn.position = v3(0, discY, 0); bn.addChildNode(dn)
         let labelMat = SCNMaterial()
         labelMat.lightingModel = .constant
@@ -255,7 +249,7 @@ extension Game {
             }
         }
         let progress = it.opened ? 1 : min(1, CGFloat(it.have) / CGFloat(Intro.need))
-        it.plateMat.emission.intensity = 0.4 + progress * 1.4
+        it.plateMat.emission.intensity = 0.7 + progress * 1.2
         let step = Int(progress * 40)
         if step != it.drawn {
             it.drawn = step

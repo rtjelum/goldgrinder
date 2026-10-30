@@ -21,7 +21,7 @@ go in too: every 10 coins count as 1 gold. Then it's on to the quarry, in dozer 
 
 ### The quarry (up top)
 
-The game starts in a desert quarry above the mines: four tan stone rooms laid out like the mines.
+The game starts in a desert quarry above the mines: four dusty dirt rooms ringed by sandstone spires, laid out like the mines.
 
 - Push the big **gold blocks** onto the **feeder belt** in the floor by the room's left wall. The belt carries them
   into the **crusher** set in the wall, which grinds them into coins that ride a conveyor out the back

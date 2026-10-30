@@ -31,6 +31,13 @@ enum DozerModel {
     static let paint = worn((0.12, 0.48, 1.0), seed: 11, metal: 0.1, rough: 0.75)       // worn blue
     static let paintDark = worn((0.08, 0.32, 0.78), seed: 12, metal: 0.15, rough: 0.78)
     static let machineYellow = worn((1.0, 0.76, 0.08), seed: 14, metal: 0.1, rough: 0.75)   // hard hat, crushers
+    /// The crushers: dull mustard paint, grimy and heavily rusted
+    static let crusherYellow: SCNMaterial = {
+        let m = Art.pbr(Art.wornPaint((0.86, 0.66, 0.12), seed: 15, rust: 0.45), metal: 0.15, rough: 0.8)
+        m.diffuse.wrapS = .repeat; m.diffuse.wrapT = .repeat
+        m.diffuse.mipFilter = .linear
+        return m
+    }()
     static let steel = worn((0.58, 0.58, 0.6), seed: 13, metal: 0.5, rough: 0.65)
     static let rubber = Art.pbr(rgb(0.13, 0.13, 0.15), rough: 0.85)
     static let wheel = Art.pbr(rgb(0.5, 0.52, 0.56), metal: 0.6, rough: 0.4)

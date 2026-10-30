@@ -116,23 +116,12 @@ extension Game {
                     mouth: max(1.05, Quarry.sizes[Quarry.laterRounds[i].blocks.max()!] + 0.55), need: Quarry.firstRound[i].need)
         }
 
-        // floor: tan stone slabs in the rooms, brown dirt all around
-        let sand = floorShape(CGRect(x: Quarry.dx - 60, y: -40, width: 120, height: 140), holes: [],
-                              mat: floorMat((0.36, 0.28, 0.18), seed: 5, repeats: 24))
+        // floor: sunny desert dirt, inside the rooms and all around
+        let around = CGRect(x: Quarry.dx - 60, y: -40, width: 120, height: 140)
+        let sand = floorShape(around, holes: [], mat: dirtMat(around, tint: (0.95, 0.9, 0.85), seed: 5))
         sand.position = v3(0, -0.03, 0)
         scene.rootNode.addChildNode(sand)
-        let slabs = Art.cobbleImage(seed: 7, stone: (0.62, 0.53, 0.4), grout: (0.3, 0.24, 0.16), count: 5)
-        for r in q.rects {
-            let mat = Art.pbr(slabs, rough: 0.85)
-            mat.diffuse.wrapS = .repeat; mat.diffuse.wrapT = .repeat
-            mat.diffuse.mipFilter = .linear
-            #if os(macOS)
-            mat.diffuse.contentsTransform = SCNMatrix4MakeScale(r.width / 4, r.height / 4, 1)
-            #else
-            mat.diffuse.contentsTransform = SCNMatrix4MakeScale(Float(r.width / 4), Float(r.height / 4), 1)
-            #endif
-            scene.rootNode.addChildNode(floorShape(r, holes: [], mat: mat))
-        }
+        for r in q.rects { scene.rootNode.addChildNode(floorShape(r, holes: [], mat: dirtMat(r, tint: (1.05, 1.0, 0.95), seed: 6))) }
 
         // brown rock spires instead of crystals
         let mats: [SCNMaterial] = [
@@ -142,7 +131,7 @@ extension Game {
             Art.pbr(rgb(0.82, 0.72, 0.56), rough: 0.8, emit: rgb(0.1, 0.08, 0.04)),
         ]
         buildWalls(rects: q.rects, gates: q.gates, openings: q.crushers.map { $0.y }, openingHalf: 1.9,
-                   mats: mats, rockMat: Art.pbr(rgb(0.36, 0.28, 0.2), rough: 0.9), seed: 77)
+                   mats: mats, rockMat: Art.pbr(rgb(0.36, 0.28, 0.2), rough: 0.9), seed: 77, grain: 0.6)
         buildGates(q.gates, cap: rgb(0.15, 0.55, 0.6))
         for c in q.crushers { buildCrusher(c) }
 
@@ -159,7 +148,7 @@ extension Game {
     }
 
     func buildCrusher(_ c: Crusher) {
-        let body = DozerModel.machineYellow, steel = DozerModel.steel
+        let body = DozerModel.crusherYellow, steel = DozerModel.steel
         let dark = Art.pbr(rgb(0.12, 0.11, 0.12), metal: 0.6, rough: 0.5)
         let H = Quarry.housing, M = c.mouth
         let n = c.node
@@ -292,8 +281,8 @@ extension Game {
         let bg = vault ? rgb(0.07, 0.07, 0.07) : desert ? rgb(0.14, 0.11, 0.08) : rgb(0.08, 0.06, 0.04)
         scene.background.contents = bg
         view?.backgroundColor = bg
-        ambient.color = vault ? rgb(0.95, 0.95, 0.95) : desert ? rgb(1, 0.95, 0.88) : rgb(1, 0.95, 0.88)
-        ambient.intensity = desert || vault ? 500 : 450
+        ambient.color = rgb(0.85, 0.88, 1)
+        ambient.intensity = desert || vault ? 330 : 300
         let goal = vault ? "fill the button, then crush the gold" : desert ? "push the gold into the crusher" : "pile gold on the buttons"
         #if os(iOS)
         hud.hint.text = "▲▼ drive · ◀ ▶ turn · " + goal

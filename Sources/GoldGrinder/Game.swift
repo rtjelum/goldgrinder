@@ -293,10 +293,10 @@ final class Game: NSObject, SCNSceneRendererDelegate {
         cam.bloomIntensity = 0.6
         cam.bloomThreshold = 0.9
         cam.bloomBlurRadius = 10
-        cam.vignettingIntensity = 0.25
+        cam.vignettingIntensity = 0.35
         cam.vignettingPower = 1.0
-        cam.saturation = 1.15       // punchy, cartoon colours
-        cam.contrast = 0.12
+        cam.saturation = 1.05       // rich but natural colours, like the reference art
+        cam.contrast = 0.18
         camNode.camera = cam
         scene.rootNode.addChildNode(rig)
         rig.addChildNode(camNode)
@@ -308,41 +308,54 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     func buildLighting() {
         scene.background.contents = rgb(0.08, 0.06, 0.04)
         scene.lightingEnvironment.contents = Art.environmentImage()
-        scene.lightingEnvironment.intensity = 1.6
+        scene.lightingEnvironment.intensity = 0.8
 
+        // a warm, late-afternoon sun from the upper left of the screen (the dirt texture bakes in the same light)
         let sun = SCNLight()
         sun.type = .directional
-        sun.intensity = 2000
-        sun.color = rgb(1, 0.97, 0.9)
+        sun.intensity = 2800
+        sun.color = rgb(1, 0.92, 0.8)
         sun.castsShadow = true
         sun.shadowMapSize = CGSize(width: 2048, height: 2048)
-        sun.shadowColor = SKColor(red: 0.1, green: 0.06, blue: 0.02, alpha: 0.5)
-        sun.shadowSampleCount = 8
-        sun.shadowRadius = 2
+        sun.shadowColor = SKColor(red: 0.1, green: 0.06, blue: 0.03, alpha: 0.75)
+        sun.shadowSampleCount = 16
+        sun.shadowRadius = 2.5
         sun.automaticallyAdjustsShadowProjection = true
         sun.maximumShadowDistance = 50
         let sunNode = SCNNode()
         sunNode.light = sun
-        sunNode.eulerAngles = v3(-1.0, 0.6, 0)
+        sunNode.position = v3(-12.5, 12.2, 7.5)    // shining toward the screen's lower right
+        sunNode.look(at: v3(0, 0, 0))
         scene.rootNode.addChildNode(sunNode)
 
         ambient.type = .ambient
-        ambient.intensity = 450
-        ambient.color = rgb(1, 0.95, 0.88)
+        ambient.intensity = 300
+        ambient.color = rgb(0.85, 0.88, 1)         // cool sky fill in the shadows
         let ambNode = SCNNode()
         ambNode.light = ambient
         scene.rootNode.addChildNode(ambNode)
     }
 
-    func floorMat(_ base: (CGFloat, CGFloat, CGFloat), seed: UInt64, repeats: CGFloat) -> SCNMaterial {
-        let m = Art.pbr(Art.floorImage(base: base, seed: seed), rough: 0.95)
-        m.diffuse.wrapS = .repeat
-        m.diffuse.wrapT = .repeat
-        #if os(macOS)
-        m.diffuse.contentsTransform = SCNMatrix4MakeScale(repeats, repeats, 1)
-        #else
-        m.diffuse.contentsTransform = SCNMatrix4MakeScale(Float(repeats), Float(repeats), 1)
-        #endif
+    /// The dirt texture is costly to make, so all floors share one.
+    static let dirt = Art.dirtImage(seed: 3)
+    static let dirtTile: CGFloat = 6          // one dirt tile covers 6 x 6 units
+
+    /// Dirt for a floor piece covering `r` (game coords), lined up with the world so neighbouring pieces match.
+    /// `tint` colours the big soft patches laid over it (different per stage).
+    func dirtMat(_ r: CGRect, tint: (CGFloat, CGFloat, CGFloat), seed: UInt64) -> SCNMaterial {
+        let m = Art.pbr(Game.dirt, rough: 0.95)
+        m.multiply.contents = Art.dirtVariation(seed: seed, tint: tint)
+        for (p, tile) in [(m.diffuse, Game.dirtTile), (m.multiply, Game.dirtTile * 4.7)] {
+            p.wrapS = .repeat; p.wrapT = .repeat
+            p.mipFilter = .linear
+            #if os(macOS)
+            p.contentsTransform = SCNMatrix4Mult(SCNMatrix4MakeScale(r.width / tile, r.height / tile, 1),
+                                                 SCNMatrix4MakeTranslation(r.minX / tile, r.minY / tile, 0))
+            #else
+            p.contentsTransform = SCNMatrix4Mult(SCNMatrix4MakeScale(Float(r.width / tile), Float(r.height / tile), 1),
+                                                 SCNMatrix4MakeTranslation(Float(r.minX / tile), Float(r.minY / tile), 0))
+            #endif
+        }
         return m
     }
 
@@ -396,23 +409,14 @@ final class Game: NSObject, SCNSceneRendererDelegate {
 
     func buildFloor() {
         let holes = wells
-        let on = floorShape(CGRect(x: -60, y: -40, width: 120, height: 140), holes: holes,
-                            mat: floorMat((0.22, 0.16, 0.1), seed: 1, repeats: 24))
+        // mines: darker, redder dirt, a little darker still outside the walls
+        let outside = CGRect(x: -60, y: -40, width: 120, height: 140)
+        let on = floorShape(outside, holes: holes, mat: dirtMat(outside, tint: (0.72, 0.62, 0.55), seed: 1))
         on.position = v3(0, -0.03, 0)
         scene.rootNode.addChildNode(on)
-        // mine floors: cobblestones, one texture tile (6 x 6 stones) per 4 units
-        let cobble = Art.cobbleImage(seed: 2, stone: (0.56, 0.45, 0.33), grout: (0.27, 0.2, 0.13))
         for a in areas {
             let inside = holes.filter { a.rect.contains($0.p) }
-            let mat = Art.pbr(cobble, rough: 0.85)
-            mat.diffuse.wrapS = .repeat; mat.diffuse.wrapT = .repeat
-            mat.diffuse.mipFilter = .linear
-            #if os(macOS)
-            mat.diffuse.contentsTransform = SCNMatrix4MakeScale(a.rect.width / 4, a.rect.height / 4, 1)
-            #else
-            mat.diffuse.contentsTransform = SCNMatrix4MakeScale(Float(a.rect.width / 4), Float(a.rect.height / 4), 1)
-            #endif
-            scene.rootNode.addChildNode(floorShape(a.rect, holes: inside, mat: mat))
+            scene.rootNode.addChildNode(floorShape(a.rect, holes: inside, mat: dirtMat(a.rect, tint: (0.85, 0.74, 0.66), seed: 2)))
         }
         for h in holes { buildWell(h.p, h.r) }
         let D = wellDepth
@@ -436,8 +440,11 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     /// Jagged walls around a row of rooms: tall at the back (left), low spikes at the front (right),
     /// a band between rooms with a gap for each gate, and an opening in each room's left wall at `openings`.
     func buildWalls(rects: [CGRect], gates: [Gate], openings: [CGFloat], openingHalf: CGFloat,
-                    mats: [SCNMaterial], rockMat: SCNMaterial, seed: UInt64) {
+                    mats: [SCNMaterial], rockMat: SCNMaterial, seed: UInt64, grain: Float = 0.4) {
         var rng = SeededRNG(s: seed)
+        // streaky, gritty stone laid over each shard's colour
+        let grainImage = Art.shardGrain(seed: seed, strength: grain)
+        for m in mats { m.multiply.contents = grainImage; m.multiply.wrapS = .repeat; m.multiply.mipFilter = .linear }
         func r(_ a: CGFloat, _ b: CGFloat) -> CGFloat { CGFloat.random(in: a...b, using: &rng) }
         var protos: [SCNGeometry] = []
         for k in 0..<12 {
@@ -564,9 +571,16 @@ final class Game: NSObject, SCNSceneRendererDelegate {
             t.node.position = world(t.pos)
             // the glowing plate at the bottom of the well
             let disc = SCNCylinder(radius: R, height: 0.02); disc.radialSegmentCount = 64
-            disc.materials = [t.discMat]
-            if case .gate = t.kind { t.discMat.diffuse.contents = rgb(0.1, 0.3, 0.85); t.discMat.emission.contents = rgb(0.02, 0.1, 0.4) }
-            if t.kind == .win { t.discMat.diffuse.contents = rgb(1, 0.85, 0.3); t.discMat.emission.contents = rgb(0.8, 0.5, 0.05) }
+            // dark glowing pad: orange for dozers, blue for gates, gold for the win
+            var glow: (CGFloat, CGFloat, CGFloat) = (1, 0.55, 0.12)
+            if case .gate = t.kind { glow = (0.2, 0.75, 1) }
+            if t.kind == .win { glow = (1, 0.85, 0.3) }
+            let pad = Art.padImage(glow)
+            t.discMat.diffuse.contents = pad
+            t.discMat.emission.contents = pad
+            t.discMat.emission.intensity = 0.9
+            t.discMat.metalness.contents = 0.4
+            disc.materials = [Art.pbr(rgb(0.1, 0.1, 0.11), metal: 0.6, rough: 0.4), t.discMat, t.discMat]
             t.disc.geometry = disc
             t.disc.position = v3(0, discY, 0)
             t.node.addChildNode(t.disc)
@@ -615,7 +629,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
     }
 
     static let beltFrameMat = Art.pbr(rgb(0.22, 0.22, 0.26), metal: 0.8, rough: 0.4)
-    static let beltRailMat = Art.pbr(rgb(1, 0.72, 0.1), metal: 0.3, rough: 0.4)
+    static let beltRailMat = Art.pbr(rgb(0.88, 0.66, 0.12), metal: 0.3, rough: 0.55)
 
     /// A conveyor belt on legs from `a` to `b` (the belt surface at height 0.55). `mat` is the moving belt.
     func conveyor(from a: CGPoint, to b: CGPoint, mat: SCNMaterial) -> SCNNode {

@@ -51,8 +51,8 @@ final class Hud: SKScene {
         joyBase.isHidden = true; joyKnob.isHidden = true
         for n in [coinIcon, coinLabel, loadIcon, loadLabel, hint, tag, joyBase, joyKnob] as [SKNode] { addChild(n) }
 
-        newGameButton.fillColor = SKColor(red: 0.07, green: 0.15, blue: 0.3, alpha: 0.85)
-        newGameButton.strokeColor = SKColor(red: 1, green: 0.78, blue: 0.25, alpha: 1)
+        newGameButton.fillColor = SKColor(red: 0.17, green: 0.15, blue: 0.16, alpha: 0.7)
+        newGameButton.strokeColor = SKColor(red: 0.62, green: 0.64, blue: 0.7, alpha: 1)
         newGameButton.lineWidth = 2.5
         newGameLabel.fontSize = 16; newGameLabel.fontColor = .white
         newGameLabel.verticalAlignmentMode = .center
@@ -76,8 +76,8 @@ final class Hud: SKScene {
         // on-screen drive buttons: forward / reverse on the left, turn left / right on the right
         for c in Control.allCases {
             let b = SKShapeNode(circleOfRadius: 44)
-            b.fillColor = SKColor(red: 0.07, green: 0.15, blue: 0.3, alpha: 0.6)
-            b.strokeColor = SKColor(red: 1, green: 0.78, blue: 0.25, alpha: 0.9)
+            b.fillColor = SKColor(red: 0.17, green: 0.15, blue: 0.16, alpha: 0.4)
+            b.strokeColor = SKColor(red: 1, green: 0.94, blue: 0.84, alpha: 0.85)
             b.lineWidth = 3
             b.zPosition = 10
             let arrow = SKShapeNode(path: Hud.arrowPath(c))
@@ -99,7 +99,7 @@ final class Hud: SKScene {
         counters.addChild(counterTitle)
         for (i, caption) in ["COLLECTED", "NEEDED"].enumerated() {
             let box = SKShapeNode(rectOf: CGSize(width: 116, height: 50), cornerRadius: 12)
-            box.fillColor = SKColor(red: 0.07, green: 0.15, blue: 0.3, alpha: 0.85)
+            box.fillColor = SKColor(red: 0.17, green: 0.15, blue: 0.16, alpha: 0.7)
             box.strokeColor = SKColor(red: 1, green: 0.78, blue: 0.25, alpha: 1)
             box.lineWidth = 2.5
             box.position = CGPoint(x: i == 0 ? -64 : 64, y: 0)
@@ -243,7 +243,7 @@ final class Hud: SKScene {
     func showPressed(_ held: Set<Control>) {
         for (c, b) in controls {
             b.fillColor = held.contains(c) ? SKColor(red: 1, green: 0.7, blue: 0.15, alpha: 0.85)
-                                           : SKColor(red: 0.07, green: 0.15, blue: 0.3, alpha: 0.6)
+                                           : SKColor(red: 0.17, green: 0.15, blue: 0.16, alpha: 0.4)
             b.setScale(held.contains(c) ? 0.92 : 1)
         }
     }

@@ -51,6 +51,7 @@ enum Art {
     /// Unit size: base radius 1, column height `body`, tip height `tip`.
     static func crystal(sides: Int, body: Float, tip: Float, twist: Float) -> SCNGeometry {
         var pos = [SIMD3<Float>](), nrm = [SIMD3<Float>](), idx = [UInt32]()
+        var uv = [SIMD2<Float>]()
         func ring(_ rad: Float, _ y: Float, _ k: Int, _ rot: Float) -> SIMD3<Float> {
             let a = Float(k) / Float(sides) * 2 * .pi + rot
             return [cos(a) * rad, y, sin(a) * rad]
@@ -59,6 +60,8 @@ enum Art {
             let n = simd_normalize(simd_cross(v[1] - v[0], v[2] - v[0]))
             let b = UInt32(pos.count)
             pos += v; nrm += Array(repeating: n, count: v.count)
+            // texture wraps around the shard (u) and runs up it (v)
+            uv += v.map { SIMD2(atan2($0.z, $0.x) / (2 * .pi) + 0.5, 1 - $0.y / (body + tip)) }
             for k in 1..<(v.count - 1) { idx += [b, b + UInt32(k), b + UInt32(k + 1)] }
         }
         let apex = SIMD3<Float>(0.08, body + tip, -0.05)
@@ -76,6 +79,9 @@ enum Art {
                               componentsPerVector: 3, bytesPerComponent: 4, dataOffset: 0, dataStride: st),
             SCNGeometrySource(data: nData, semantic: .normal, vectorCount: nrm.count, usesFloatComponents: true,
                               componentsPerVector: 3, bytesPerComponent: 4, dataOffset: 0, dataStride: st),
+            SCNGeometrySource(data: uv.withUnsafeBufferPointer { Data(buffer: $0) }, semantic: .texcoord, vectorCount: uv.count,
+                              usesFloatComponents: true, componentsPerVector: 2, bytesPerComponent: 4, dataOffset: 0,
+                              dataStride: MemoryLayout<SIMD2<Float>>.stride),
         ], elements: [SCNGeometryElement(data: idx.withUnsafeBufferPointer { Data(buffer: $0) }, primitiveType: .triangles,
                                          primitiveCount: idx.count / 3, bytesPerIndex: 4)])
         g.materials = [SCNMaterial()]
@@ -224,17 +230,17 @@ enum Art {
     static func nugget(seed: UInt64) -> SCNGeometry {
         var rng = SeededRNG(s: seed)
         func r(_ a: Float, _ b: Float) -> Float { Float.random(in: a...b, using: &rng) }
-        let lon = 7
-        // rings from the bottom up: (height, radius)
-        let rings: [(Float, Float)] = [(0, 0.85), (0.35, 1.0), (0.7, 0.78), (0.95, 0.4)]
+        let lon = 12
+        // rings from the bottom up: (height, radius); many small facets make it look crinkled
+        let rings: [(Float, Float)] = [(0, 0.82), (0.18, 0.96), (0.4, 1.0), (0.6, 0.9), (0.8, 0.66), (0.95, 0.36)]
         var grid: [[SIMD3<Float>]] = []
         let twist = r(0, 1)
         for (k, ring) in rings.enumerated() {
             var row: [SIMD3<Float>] = []
             for i in 0..<lon {
                 let a = (Float(i) + twist + r(-0.25, 0.25) + Float(k) * 0.5) / Float(lon) * 2 * .pi
-                let rad = ring.1 * r(0.72, 1.12)
-                let y = k == 0 ? 0 : ring.0 + r(-0.08, 0.08)
+                let rad = ring.1 * r(0.8, 1.12)
+                let y = k == 0 ? 0 : ring.0 + r(-0.06, 0.06)
                 row.append([cos(a) * rad, y, sin(a) * rad])
             }
             grid.append(row)
@@ -403,7 +409,7 @@ enum Art {
         let rect = CGRect(x: 6, y: 6, width: w - 12, height: h - 12)
         let path = CGPath(roundedRect: rect, cornerWidth: 40, cornerHeight: 40, transform: nil)
         ctx.addPath(path)
-        ctx.setFillColor(full ? CGColor(red: 0.55, green: 0.32, blue: 0.05, alpha: 0.95) : CGColor(red: 0.07, green: 0.15, blue: 0.3, alpha: 0.92))
+        ctx.setFillColor(full ? CGColor(red: 0.55, green: 0.32, blue: 0.05, alpha: 0.95) : CGColor(red: 0.17, green: 0.15, blue: 0.16, alpha: 0.88))
         ctx.fillPath()
         ctx.addPath(path); ctx.setStrokeColor(CGColor(red: 1, green: 0.78, blue: 0.25, alpha: 1)); ctx.setLineWidth(8); ctx.strokePath()
         if let icon = icon {
@@ -459,7 +465,7 @@ enum Art {
         let ctx = context(w, h)
         let rect = CGRect(x: 6, y: 6, width: w - 12, height: h - 12)
         let path = CGPath(roundedRect: rect, cornerWidth: 36, cornerHeight: 36, transform: nil)
-        ctx.addPath(path); ctx.setFillColor(CGColor(red: 0.07, green: 0.15, blue: 0.3, alpha: 0.92)); ctx.fillPath()
+        ctx.addPath(path); ctx.setFillColor(CGColor(red: 0.17, green: 0.15, blue: 0.16, alpha: 0.88)); ctx.fillPath()
         ctx.addPath(path); ctx.setStrokeColor(CGColor(red: 1, green: 0.78, blue: 0.25, alpha: 1)); ctx.setLineWidth(8); ctx.strokePath()
         text(ctx, "GOLD LEFT", size: 34, color: CGColor(red: 1, green: 0.82, blue: 0.4, alpha: 1), at: CGPoint(x: 200, y: 145))
         if left > 0 {
@@ -473,6 +479,48 @@ enum Art {
         ctx.setFillColor(CGColor(red: 0.04, green: 0.07, blue: 0.12, alpha: 1)); ctx.fill(bar)
         ctx.setFillColor(CGColor(red: 1, green: 0.78, blue: 0.2, alpha: 1))
         ctx.fill(CGRect(x: bar.minX, y: bar.minY, width: bar.width * CGFloat(left) / CGFloat(max(1, total)), height: bar.height))
+        return ctx.makeImage()!
+    }
+
+    /// A button's glowing plate: dark metal with rings and segments lit in `c`, like a sci-fi landing pad.
+    /// Used as both colour and glow, so its emission intensity sets how bright it shines.
+    static func padImage(_ c: (CGFloat, CGFloat, CGFloat)) -> CGImage {
+        let s = 512
+        let ctx = context(s, s)
+        let m = CGPoint(x: s / 2, y: s / 2), R = CGFloat(s) / 2
+        func glow(_ a: CGFloat) -> CGColor { CGColor(red: c.0, green: c.1, blue: c.2, alpha: a) }
+        func ring(_ rad: CGFloat, _ w: CGFloat, _ col: CGColor, from: CGFloat = 0, to: CGFloat = 2 * .pi) {
+            ctx.setLineWidth(w); ctx.setStrokeColor(col)
+            ctx.addArc(center: m, radius: rad, startAngle: from, endAngle: to, clockwise: false); ctx.strokePath()
+        }
+        // dark slate plate, a little lighter in the middle
+        let plate = [CGColor(red: 0.16, green: 0.17, blue: 0.19, alpha: 1), CGColor(red: 0.08, green: 0.09, blue: 0.1, alpha: 1)] as CFArray
+        ctx.drawRadialGradient(CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: plate, locations: [0, 1])!,
+                               startCenter: m, startRadius: 0, endCenter: m, endRadius: R, options: [.drawsAfterEndLocation])
+        // soft glow under the outer band
+        let halo = [glow(0), glow(0.35), glow(0)] as CFArray
+        ctx.drawRadialGradient(CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: halo, locations: [0, 0.5, 1])!,
+                               startCenter: m, startRadius: R * 0.62, endCenter: m, endRadius: R * 0.98, options: [])
+        // outer band: lit segments with gaps
+        let segs = 36
+        for k in 0..<segs {
+            let a0 = CGFloat(k) / CGFloat(segs) * 2 * .pi, a1 = a0 + 2 * .pi / CGFloat(segs) * 0.72
+            ring(R * 0.84, R * 0.08, glow(k % 9 == 0 ? 0.45 : 1), from: a0, to: a1)
+        }
+        ring(R * 0.94, R * 0.025, glow(0.9))                     // thin outer line
+        ring(R * 0.73, R * 0.02, glow(0.75))                     // thin inner line
+        // inner rings: broken arcs, dimmer
+        for (rad, a0, a1) in [(0.6, 0.3, 2.4), (0.6, 3.4, 5.6), (0.47, 1.2, 3.0), (0.47, 4.1, 6.0)] as [(CGFloat, CGFloat, CGFloat)] {
+            ring(R * rad, R * 0.018, glow(0.5), from: a0, to: a1)
+        }
+        // faint cross-hair ticks
+        ctx.setLineWidth(3); ctx.setStrokeColor(glow(0.35))
+        for k in 0..<4 {
+            let a = CGFloat(k) * .pi / 2
+            ctx.move(to: CGPoint(x: m.x + cos(a) * R * 0.3, y: m.y + sin(a) * R * 0.3))
+            ctx.addLine(to: CGPoint(x: m.x + cos(a) * R * 0.42, y: m.y + sin(a) * R * 0.42))
+        }
+        ctx.strokePath()
         return ctx.makeImage()!
     }
 
@@ -523,82 +571,155 @@ enum Art {
         return ctx.makeImage()!
     }
 
-    static func floorImage(base: (CGFloat, CGFloat, CGFloat), seed: UInt64) -> CGImage {
+    // MARK: Dirt ground
+
+    /// Tileable value noise: smooth random blotches, `cells` lattice cells across the tile.
+    static func noise(_ s: Int, cells: Int, seed: UInt64) -> [Float] {
         var rng = SeededRNG(s: seed)
-        let s = 512
-        let ctx = context(s, s)
-        ctx.setFillColor(CGColor(red: base.0, green: base.1, blue: base.2, alpha: 1))
-        ctx.fill(CGRect(x: 0, y: 0, width: s, height: s))
-        for _ in 0..<1100 {
-            let x = CGFloat.random(in: 0...512, using: &rng), y = CGFloat.random(in: 0...512, using: &rng)
-            let r = CGFloat.random(in: 2...12, using: &rng)
-            let k = CGFloat.random(in: -0.05...0.04, using: &rng)
-            ctx.setFillColor(CGColor(red: base.0 + k, green: base.1 + k, blue: base.2 + k, alpha: 0.7))
-            ctx.fillEllipse(in: CGRect(x: x, y: y, width: r * 1.5, height: r))
+        let lat = (0..<(cells * cells)).map { _ in Float.random(in: 0...1, using: &rng) }
+        func L(_ i: Int, _ j: Int) -> Float { lat[((j % cells + cells) % cells) * cells + (i % cells + cells) % cells] }
+        var out = [Float](repeating: 0, count: s * s)
+        let k = Float(cells) / Float(s)
+        for y in 0..<s {
+            let fy = Float(y) * k, j = Int(fy), ty = fy - Float(j), sy = ty * ty * (3 - 2 * ty)
+            for x in 0..<s {
+                let fx = Float(x) * k, i = Int(fx), tx = fx - Float(i), sx = tx * tx * (3 - 2 * tx)
+                let a = L(i, j) + (L(i + 1, j) - L(i, j)) * sx
+                let b = L(i, j + 1) + (L(i + 1, j + 1) - L(i, j + 1)) * sx
+                out[y * s + x] = a + (b - a) * sy
+            }
         }
-        return ctx.makeImage()!
+        return out
     }
 
-    /// Tileable cobblestones: rounded stones of varied colour, lit from the upper left, in dark grout.
-    static func cobbleImage(seed: UInt64, stone: (CGFloat, CGFloat, CGFloat) = (0.5, 0.46, 0.4),
-                            grout: (CGFloat, CGFloat, CGFloat) = (0.22, 0.2, 0.17), count: Int = 6) -> CGImage {
+    /// Light for the baked ground, in texture space (x right, y down the image rows, z up).
+    /// Matches the sun in Game.buildLighting: it comes from the upper left of the screen.
+    static let dirtLight = simd_normalize(SIMD3<Float>(-1.25, -0.75, 1.22))
+
+    /// Packed desert dirt, like the reference art: brown earth with blotches, gravel patches, scattered pebbles
+    /// and a few flat stones, with the sun and the pebbles' little shadows baked in. Tiles seamlessly.
+    /// `tint` scales the base colour.
+    static func dirtImage(seed: UInt64, tint: SIMD3<Float> = [1, 1, 1]) -> CGImage {
+        let s = 1024
         var rng = SeededRNG(s: seed)
-        func r(_ a: CGFloat, _ b: CGFloat) -> CGFloat { CGFloat.random(in: a...b, using: &rng) }
-        let s: CGFloat = 512, n = count
-        let cell = s / CGFloat(n)
-        let ctx = context(Int(s), Int(s))
-        ctx.setFillColor(CGColor(red: grout.0, green: grout.1, blue: grout.2, alpha: 1))   // grout
-        ctx.fill(CGRect(x: 0, y: 0, width: s, height: s))
-        for row in 0..<n {
-            for col in 0..<n {
-                // rows are offset by half a stone, like laid cobbles
-                let cx = (CGFloat(col) + 0.5 + (row % 2 == 0 ? 0 : 0.5)) * cell + r(-7, 7)
-                let cy = (CGFloat(row) + 0.5) * cell + r(-6, 6)
-                let squash = r(0.85, 1.12)
-                // irregular rounded outline
-                var pts: [CGPoint] = []
-                let k = 9
-                for i in 0..<k {
-                    let a = CGFloat(i) / CGFloat(k) * 2 * .pi + r(-0.15, 0.15)
-                    let rad = cell * r(0.43, 0.5)
-                    pts.append(CGPoint(x: cos(a) * rad * squash, y: sin(a) * rad / squash))
-                }
-                func outline(_ scale: CGFloat, _ dx: CGFloat, _ dy: CGFloat) -> CGPath {
-                    let p = CGMutablePath()
-                    func at(_ i: Int) -> CGPoint { let q = pts[(i + k) % k]; return CGPoint(x: q.x * scale + dx, y: q.y * scale + dy) }
-                    func mid(_ a: CGPoint, _ b: CGPoint) -> CGPoint { CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2) }
-                    p.move(to: mid(at(0), at(1)))
-                    for i in 1...k { p.addQuadCurve(to: mid(at(i), at(i + 1)), control: at(i)) }
-                    p.closeSubpath()
-                    return p
-                }
-                let tone = r(-0.06, 0.05)
-                let base = (stone.0 + tone + r(-0.012, 0.012), stone.1 + tone + r(-0.01, 0.01), stone.2 + tone + r(-0.012, 0.012))
-                // draw at the wrap-around copies too so the tile repeats seamlessly
-                for ox in [-s, 0, s] {
-                    for oy in [-s, 0, s] {
-                        let x = cx + ox, y = cy + oy
-                        guard x > -cell, x < s + cell, y > -cell, y < s + cell else { continue }
-                        ctx.addPath(outline(1, x + 2, y - 3))       // shadow side
-                        ctx.setFillColor(CGColor(red: 0.12, green: 0.09, blue: 0.06, alpha: 0.6)); ctx.fillPath()
-                        ctx.addPath(outline(1, x, y))
-                        ctx.setFillColor(CGColor(red: base.0 * 0.85, green: base.1 * 0.85, blue: base.2 * 0.85, alpha: 1)); ctx.fillPath()
-                        ctx.addPath(outline(0.86, x - 2, y + 2.5))  // lit top
-                        ctx.setFillColor(CGColor(red: base.0, green: base.1, blue: base.2, alpha: 1)); ctx.fillPath()
-                        ctx.addPath(outline(0.45, x - 5, y + 6))    // soft shine
-                        ctx.setFillColor(CGColor(red: 1, green: 0.97, blue: 0.9, alpha: 0.07)); ctx.fillPath()
+        func r(_ a: Float, _ b: Float) -> Float { Float.random(in: a...b, using: &rng) }
+        let big = noise(s, cells: 5, seed: seed &+ 1), mid = noise(s, cells: 16, seed: seed &+ 2)
+        let fine = noise(s, cells: 90, seed: seed &+ 3), patch = noise(s, cells: 7, seed: seed &+ 4)
+        var col = [SIMD3<Float>](repeating: .zero, count: s * s)
+        var h = [Float](repeating: 0, count: s * s)
+        let earth = SIMD3<Float>(0.54, 0.45, 0.36) * tint, dark = SIMD3<Float>(0.38, 0.31, 0.25) * tint
+        for i in 0..<(s * s) {
+            let t = big[i] * 0.55 + mid[i] * 0.3 + fine[i] * 0.15
+            col[i] = simd_mix(dark, earth, SIMD3(repeating: min(1, max(0, t * 1.4 - 0.15))))
+            h[i] = big[i] * 6 + mid[i] * 2.5 + fine[i] * 1.2     // gentle undulation (in pixels of height)
+        }
+
+        /// Stamp one stone: an irregular blob of radius `rad` px, `ht` px high, flatness `flat` (0 round .. 1 slab).
+        func stone(_ cx: Float, _ cy: Float, rad: Float, ht: Float, color c: SIMD3<Float>, flat: Float) {
+            let rot = r(0, 6.28), squash = flat > 0.5 ? r(0.35, 0.6) : r(0.6, 1.0)
+            let harm = (0..<4).map { _ in (r(-0.18, 0.18), r(0, 6.28)) }
+            let ext = Int(rad * 1.4) + 2
+            let base = h[((Int(cy) % s + s) % s) * s + ((Int(cx) % s + s) % s)]
+            for dy in -ext...ext {
+                for dx in -ext...ext {
+                    let ux = Float(dx) * cos(rot) + Float(dy) * sin(rot)
+                    let uy = (-Float(dx) * sin(rot) + Float(dy) * cos(rot)) / squash
+                    let d = (ux * ux + uy * uy).squareRoot()
+                    let a = atan2(uy, ux)
+                    var edge = rad
+                    for (k, hm) in harm.enumerated() { edge *= 1 + hm.0 * sin(Float(k + 2) * a + hm.1) }
+                    guard d < edge else { continue }
+                    let x = ((Int(cx) + dx) % s + s) % s, y = ((Int(cy) + dy) % s + s) % s
+                    let i = y * s + x
+                    let q = d / edge
+                    let dome = flat > 0.5 ? min(1, (1 - q) * 6) : (1 - q * q).squareRoot()
+                    let top = base + ht * dome
+                    if top > h[i] {
+                        h[i] = top
+                        col[i] = c * (flat > 0.5 ? 0.82 + 0.3 * fine[i] * mid[i] : 0.92 + 0.08 * fine[i]) * (q > 0.85 ? 0.85 : 1)
                     }
                 }
             }
         }
-        // grit and wear across everything
-        for _ in 0..<1400 {
-            let x = r(0, s), y = r(0, s), rr = r(0.6, 2.2)
-            let dark = r(0, 1) < 0.6
-            ctx.setFillColor(dark ? CGColor(red: 0.12, green: 0.09, blue: 0.06, alpha: r(0.08, 0.22))
-                                  : CGColor(red: 0.85, green: 0.8, blue: 0.7, alpha: r(0.08, 0.2)))
-            ctx.fillEllipse(in: CGRect(x: x, y: y, width: rr, height: rr))
+        func stoneColor() -> SIMD3<Float> {
+            let g = r(0.4, 0.72)
+            return SIMD3(g * r(1.0, 1.08), g * r(0.94, 1.0), g * r(0.84, 0.92)) * tint
         }
+        // gravel: dense where the patch noise is high
+        for _ in 0..<9000 {
+            let x = r(0, Float(s)), y = r(0, Float(s))
+            let p = patch[Int(y) * s + Int(x)]
+            guard r(0, 1) < (p - 0.4) * 2.5 else { continue }
+            stone(x, y, rad: r(3, 7), ht: r(2.5, 5), color: stoneColor(), flat: 0)
+        }
+        // pebbles everywhere, plus a few bigger rocks
+        for _ in 0..<900 { stone(r(0, Float(s)), r(0, Float(s)), rad: r(4, 10), ht: r(3, 7), color: stoneColor(), flat: 0) }
+        for _ in 0..<40 { stone(r(0, Float(s)), r(0, Float(s)), rad: r(12, 22), ht: r(8, 14), color: stoneColor(), flat: 0) }
+        // a few big flat stones lying on top
+        for _ in 0..<4 {
+            let g = r(0.5, 0.6)
+            stone(r(0, Float(s)), r(0, Float(s)), rad: r(40, 70), ht: 6, color: SIMD3(g * 1.03, g * 0.98, g * 0.94) * tint, flat: 1)
+        }
+        // bake the light: slope shading plus cast shadows marched through the height field
+        let L = dirtLight
+        var px = [UInt8](repeating: 255, count: s * s * 4)
+        func H(_ x: Int, _ y: Int) -> Float { h[((y % s + s) % s) * s + ((x % s + s) % s)] }
+        let stepX = L.x / max(abs(L.x), abs(L.y)), stepY = L.y / max(abs(L.x), abs(L.y))
+        let rise = L.z / (L.x * L.x + L.y * L.y).squareRoot()
+        for y in 0..<s {
+            for x in 0..<s {
+                let i = y * s + x
+                let n = simd_normalize(SIMD3<Float>(H(x - 1, y) - H(x + 1, y), H(x, y - 1) - H(x, y + 1), 2))
+                var lit = max(0, simd_dot(n, L)) / L.z            // 1 on flat ground
+                var sx = Float(x), sy = Float(y), sh = h[i]
+                let stepLen = (stepX * stepX + stepY * stepY).squareRoot()
+                for _ in 0..<14 {
+                    sx -= stepX; sy -= stepY; sh += rise * stepLen
+                    if H(Int(sx), Int(sy)) > sh + 0.3 { lit *= 0.55; break }
+                }
+                // ambient occlusion: darker in hollows
+                let around = (H(x - 3, y) + H(x + 3, y) + H(x, y - 3) + H(x, y + 3)) / 4
+                let ao = max(0.7, min(1.08, 1 + (h[i] - around) * 0.06))
+                let c = col[i] * (0.62 + 0.45 * lit) * ao
+                for k in 0..<3 { px[i * 4 + k] = UInt8(max(0, min(255, c[k] * 255))) }
+            }
+        }
+        let ctx = context(s, s)
+        px.withUnsafeBytes { ctx.data!.copyMemory(from: $0.baseAddress!, byteCount: px.count) }
+        return ctx.makeImage()!
+    }
+
+    /// Big soft light and dark patches laid over the dirt (as a multiply) so its repeats don't show.
+    static func dirtVariation(seed: UInt64, tint: (CGFloat, CGFloat, CGFloat)) -> CGImage {
+        let s = 256
+        let a = noise(s, cells: 4, seed: seed), b = noise(s, cells: 11, seed: seed &+ 7)
+        var px = [UInt8](repeating: 255, count: s * s * 4)
+        for i in 0..<(s * s) {
+            let v = 0.8 + 0.28 * (a[i] * 0.7 + b[i] * 0.3)
+            let c = [Float(tint.0), Float(tint.1), Float(tint.2)]
+            for k in 0..<3 { px[i * 4 + k] = UInt8(max(0, min(255, v * c[k] * 255))) }
+        }
+        let ctx = context(s, s)
+        px.withUnsafeBytes { ctx.data!.copyMemory(from: $0.baseAddress!, byteCount: px.count) }
+        return ctx.makeImage()!
+    }
+
+    /// Grainy stone for the wall shards (laid over their colour as a multiply): vertical streaks and grit.
+    static func shardGrain(seed: UInt64, strength: Float) -> CGImage {
+        let s = 256
+        let streak = noise(s, cells: 32, seed: seed), grit = noise(s, cells: 96, seed: seed &+ 5)
+        var px = [UInt8](repeating: 255, count: s * s * 4)
+        for y in 0..<s {
+            for x in 0..<s {
+                // streaks: stretch the noise along the shard's height
+                let st = streak[(y / 8) * s + x]
+                let v = 1 - strength * (0.55 * st + 0.45 * grit[y * s + x]) + strength * 0.3
+                let i = y * s + x
+                for k in 0..<3 { px[i * 4 + k] = UInt8(max(0, min(255, v * 255))) }
+            }
+        }
+        let ctx = context(s, s)
+        px.withUnsafeBytes { ctx.data!.copyMemory(from: $0.baseAddress!, byteCount: px.count) }
         return ctx.makeImage()!
     }
 
