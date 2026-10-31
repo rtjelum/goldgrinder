@@ -17,6 +17,7 @@ enum DozerModel {
         let exhaust: SIMD3<Float>    // smoke point (scaled, model space)
         let hull: [SIMD3<Float>]     // wall-collision points: (x, z, radius), scaled, model space
         let plowTop: Float           // height of the top of the blade (scaled)
+        let lip: Bool                // an inward edge along the top keeps the load in (mine claws)
     }
 
     // MARK: Materials
@@ -303,19 +304,21 @@ enum DozerModel {
         var plow: [SIMD2<Float>]
         let height: Float, thick: Float
         let L = min(level, 5)
-        height = [0.45, 0.55, 0.55, 0.72, 0.6, 0.82][L]
+        // mine claws get taller with every upgrade, so a bigger dozer's heap can stack higher
+        height = flat ? [0.45, 0.55, 0.55, 0.72, 0.6, 0.82][L] : [0.45, 0.55, 0.62, 0.72, 0.8, 0.9][L]
         thick = [0.06, 0.1, 0.1, 0.14, 0.1, 0.14][L]
         if flat {
             let w: Float = [0.62, 0.74, 0.86, 0.95, 1.0, 1.05][L]
             plow = [[-w * 1.22, 1.38], [-w, 1.0], [0, 1.0], [w, 1.0], [w * 1.22, 1.38]]
         } else {
+            // a half circle: the ends point straight ahead (no inward curl), so coins slide all the way to the back
             switch L {
-            case 0: plow = arc(cz: 1.55, r: 0.62, spanDeg: 115)
-            case 1: plow = arc(cz: 1.45, r: 0.85, spanDeg: 100)
-            case 2: plow = arc(cz: 1.5, r: 0.95, spanDeg: 105)
-            case 3: plow = arc(cz: 1.6, r: 1.05, spanDeg: 105)
-            case 4: plow = arc(cz: 2.1, r: 1.25, spanDeg: 78)
-            default: plow = arc(cz: 1.95, r: 1.15, spanDeg: 100)
+            case 0: plow = arc(cz: 1.55, r: 0.62, spanDeg: 90)
+            case 1: plow = arc(cz: 1.5, r: 0.85, spanDeg: 90)
+            case 2: plow = arc(cz: 1.53, r: 0.95, spanDeg: 90)
+            case 3: plow = arc(cz: 1.62, r: 1.05, spanDeg: 90)
+            case 4: plow = arc(cz: 1.95, r: 1.15, spanDeg: 90)
+            default: plow = arc(cz: 2.0, r: 1.2, spanDeg: 90)
             }
         }
         let y0: Float = 0.04
@@ -326,6 +329,13 @@ enum DozerModel {
                                inner: plowMats[0], outer: plowMats[0], top: plowMats[0]))
         m.addChildNode(extrude(plow, y0: y0, y1: y0 + 0.07, thick: thick + 0.05,
                                inner: plowMats[0], outer: plowMats[0], top: plowMats[0]))
+        if !flat {
+            // the lip: a steel edge along the top that sticks out over the inside, so the heap can't spill over
+            let lipW: Float = 0.12 + 0.02 * Float(L)
+            let inner = zip(plow, normals(plow)).map { $0 + $1 * (thick / 2 + lipW / 2 - 0.02) }
+            m.addChildNode(extrude(inner, y0: y0 + height - 0.04, y1: y0 + height + 0.03, thick: lipW,
+                                   inner: plowMats[2], outer: plowMats[2], top: plowMats[0]))
+        }
 
         let back = plow.min { $0.y < $1.y }!.y
         // arms from the chassis to the back of the plow
@@ -418,6 +428,6 @@ enum DozerModel {
         for p in [plow.first!, plow.last!] { hull.append([p.x * s, p.y * s, (thick / 2 + 0.04) * s]) }
         return Built(node: root, scale: s, plow: scaled, wallHalf: (thick / 2 + 0.09) * s,
                      bodyHalfWidth: 0.64 * s, bodyBack: trackLen / 2 * s, bodyFront: (back - thick / 2) * s,
-                     exhaust: smoke * s, hull: hull, plowTop: (y0 + height) * s)
+                     exhaust: smoke * s, hull: hull, plowTop: (y0 + height) * s, lip: !flat)
     }
 }

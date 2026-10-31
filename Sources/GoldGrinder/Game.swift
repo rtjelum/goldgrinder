@@ -1118,7 +1118,7 @@ final class Game: NSObject, SCNSceneRendererDelegate {
                                back: dozer.bodyBack, front: dozer.bodyFront, segs: segs, wallHalf: dozer.wallHalf,
                                prevX: Float(prevPos.x), prevY: Float(prevPos.y),
                                prevFx: Float(cos(prevHeading)), prevFy: Float(sin(prevHeading)),
-                               hold: hold)
+                               hold: hold, lip: dozer.lip)
     }
 
     func drive(_ dt: CGFloat) {

@@ -206,6 +206,7 @@ final class CoinField {
         // Coins inside `hold` (dozer-local: x = left, y = forward) turn with the dozer
         var prevX: Float, prevY: Float, prevFx: Float, prevFy: Float
         var hold: [SIMD2<Float>]
+        var lip = false             // edged claw: the load can't go over the top, and rides along when driving forward
     }
 
     static func inside(_ p: SIMD2<Float>, _ poly: [SIMD2<Float>]) -> Bool {
@@ -220,11 +221,15 @@ final class CoinField {
     }
 
     /// Coins inside the plow turn with the dozer, so turning doesn't spill them.
-    /// (Driving forward needs no help: the plow's back wall pushes them.)
+    /// An edged claw also carries its load forward, so driving fast doesn't shake coins out.
     func carry(_ b: Blade, _ blocked: (Float, Float) -> Bool) {
         let plx = -b.prevFy, ply = b.prevFx        // previous left vector
         let lx = -b.fy, ly = b.fx                  // current left vector
-        guard abs(plx - lx) + abs(ply - ly) > 1e-5 else { return }   // not turning
+        // forward progress this frame (never backwards: reversing leaves the pile behind)
+        // (a little less than the dozer moves, so the load keeps sliding back against the plow's back wall)
+        let adv = b.lip ? max(0, (b.x - b.prevX) * b.fx + (b.y - b.prevY) * b.fy) * 0.8 : 0
+        let ox = b.prevX + b.fx * adv, oy = b.prevY + b.fy * adv
+        guard abs(plx - lx) + abs(ply - ly) > 1e-5 || adv > 1e-5 else { return }   // not turning or advancing
         var lo = SIMD2<Float>(repeating: .greatestFiniteMagnitude), hi = -lo
         for q in b.hold {
             let w = SIMD2<Float>(b.prevX + q.y * b.prevFx + q.x * plx, b.prevY + q.y * b.prevFy + q.x * ply)
@@ -240,8 +245,8 @@ final class CoinField {
                     let local = SIMD2<Float>(dx * plx + dy * ply, dx * b.prevFx + dy * b.prevFy)
                     if CoinField.inside(local, b.hold) {
                         // same spot in the plow, rotated by this frame's turn (about the dozer's old centre)
-                        let nx = b.prevX + local.y * b.fx + local.x * lx
-                        let ny = b.prevY + local.y * b.fy + local.x * ly
+                        let nx = ox + local.y * b.fx + local.x * lx
+                        let ny = oy + local.y * b.fy + local.x * ly
                         move(i, nx - px[i], ny - py[i], blocked)
                         freeT[i] = 0
                     }
@@ -289,7 +294,7 @@ final class CoinField {
                         touched = true
                     }
                     // plow walls (a coin on top of a heap as high as the blade goes over it instead)
-                    let overTop = heapTop > 0 && ph[i] >= heapTop + thick * 0.5   // clear above the blade's top edge
+                    let overTop = !b.lip && heapTop > 0 && ph[i] >= heapTop + thick * 0.5   // clear above the blade's top edge
                     for s in b.segs where !overTop {
                         let abx = s.z - s.x, aby = s.w - s.y
                         let len2 = abx * abx + aby * aby
@@ -345,7 +350,7 @@ final class CoinField {
         let minD = 2 * r * 0.74, minD2 = minD * minD   // coins overlap a little: tightly packed heaps
         let layer = thick * 0.95
         // a heap may rise a little above the blade's top edge, so its top coins go over the blade
-        let maxH = max(layer * Float(maxLayers - 1), heapTop + thick * 1.6) + 0.001
+        let maxH = max(layer * Float(maxLayers - 1), heapTop + (b.lip ? -thick * 0.5 : thick * 1.6)) + 0.001   // an edge keeps the heap under it
         for _ in 0..<3 {
             var k = 0
             while k < awake.count {
